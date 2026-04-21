@@ -8,8 +8,11 @@ mod config;
 mod db;
 mod entity;
 mod error;
+mod middleware;
+mod services;
 mod state;
 
+use crate::middleware::tenant::tenant_middleware;
 use state::AppState;
 
 #[tokio::main]
@@ -30,9 +33,7 @@ async fn main() {
 
     let state = AppState::new(db, config.clone());
 
-    let app = Router::new()
-        .route("/health", get(health))
-        .with_state(state);
+    let app = build_router(state);
 
     let addr: SocketAddr = format!("{}:{}", config.server_host, config.server_port)
         .parse()
@@ -42,6 +43,22 @@ async fn main() {
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
+}
+
+fn build_router(state: AppState) -> Router {
+    // Public — no tenant required
+    let public = Router::new().route("/health", get(health));
+
+    // Protected — tenant middleware applied; auth routes added in Phase 5
+    let protected = Router::new().layer(axum::middleware::from_fn_with_state(
+        state.clone(),
+        tenant_middleware,
+    ));
+
+    Router::new()
+        .merge(public)
+        .merge(protected)
+        .with_state(state)
 }
 
 async fn health() -> Json<serde_json::Value> {
