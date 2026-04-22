@@ -1,5 +1,5 @@
 use axum::{routing::get, Json, Router};
-use pandora_server::{
+use ovtl_core::{
     config::{self, Environment},
     db,
     middleware::{
@@ -52,7 +52,7 @@ async fn main() {
         .parse()
         .expect("invalid server address");
 
-    info!("Pandora running on {addr}");
+    info!("OVTL running on {addr}");
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(
@@ -122,7 +122,7 @@ async fn health() -> Json<serde_json::Value> {
 
 fn init_tracing(production: bool) {
     let filter =
-        EnvFilter::try_from_default_env().unwrap_or_else(|_| "pandora_server=info".into());
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| "ovtl_core=info".into());
     let registry = tracing_subscriber::registry().with(filter);
     if production {
         registry

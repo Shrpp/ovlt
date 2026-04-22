@@ -1,6 +1,6 @@
 [workspace]
 members = [
-    "pandora-server",
-    "pandora-server/migration",
+    "ovtl-core",
+    "ovtl-core/migration",
 ]
 resolver = "2"

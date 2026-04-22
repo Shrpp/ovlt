@@ -1,4 +1,4 @@
-use pandora_server::{
+use ovtl_core::{
     config::Config,
     db,
     entity::tenants,
@@ -65,7 +65,7 @@ async fn test_register_and_login() {
     )
     .expect("decrypt tenant key");
 
-    let email = "integration@pandora.dev";
+    let email = "integration@ovtl.dev";
     let password = "Test1234!";
 
     // Cleanup previous run
@@ -86,9 +86,9 @@ async fn test_register_and_login() {
     let password_hash = hefesto::hash_password(password).expect("hash password");
 
     let txn = db::begin_tenant_txn(&db, tenant_id).await.expect("begin txn");
-    let user = pandora_server::services::user_service::create(
+    let user = ovtl_core::services::user_service::create(
         &txn,
-        pandora_server::services::user_service::CreateUserInput {
+        ovtl_core::services::user_service::CreateUserInput {
             tenant_id,
             email_encrypted,
             email_lookup: email_lookup.clone(),
@@ -103,7 +103,7 @@ async fn test_register_and_login() {
 
     // Login — find user and verify password
     let txn = db::begin_tenant_txn(&db, tenant_id).await.expect("begin txn");
-    let found = pandora_server::services::user_service::find_by_email_lookup(&txn, &email_lookup)
+    let found = ovtl_core::services::user_service::find_by_email_lookup(&txn, &email_lookup)
         .await
         .expect("find user")
         .expect("user exists");
@@ -152,7 +152,7 @@ async fn test_me_endpoint_logic() {
     )
     .expect("decrypt tenant key");
 
-    let email = "me_test@pandora.dev";
+    let email = "me_test@ovtl.dev";
     let password = "Secret5678!";
 
     // Cleanup
@@ -168,9 +168,9 @@ async fn test_me_endpoint_logic() {
 
     // Register
     let txn = db::begin_tenant_txn(&db, tenant_id).await.unwrap();
-    let user = pandora_server::services::user_service::create(
+    let user = ovtl_core::services::user_service::create(
         &txn,
-        pandora_server::services::user_service::CreateUserInput {
+        ovtl_core::services::user_service::CreateUserInput {
             tenant_id,
             email_encrypted: hefesto::encrypt(email, &tenant_key, &cfg.master_encryption_key)
                 .unwrap(),
@@ -200,7 +200,7 @@ async fn test_me_endpoint_logic() {
 
     // Simulate what /users/me does: fetch user + decrypt email
     let txn = db::begin_tenant_txn(&db, tenant_id).await.unwrap();
-    let fetched = pandora_server::entity::users::Entity::find_by_id(user.id)
+    let fetched = ovtl_core::entity::users::Entity::find_by_id(user.id)
         .one(&txn)
         .await
         .unwrap()
@@ -221,7 +221,7 @@ async fn create_test_user(
     tenant_key: &str,
     email: &str,
     password: &str,
-) -> pandora_server::entity::users::Model {
+) -> ovtl_core::entity::users::Model {
     // cleanup
     let _ = db
         .execute_unprepared(&format!("SET app.tenant_id = '{tenant_id}'"))
@@ -266,7 +266,7 @@ async fn test_refresh_token_rotation() {
     .unwrap();
 
     let user =
-        create_test_user(&db, &cfg, tenant_id, &tenant_key, "refresh@pandora.dev", "Pass1234!").await;
+        create_test_user(&db, &cfg, tenant_id, &tenant_key, "refresh@ovtl.dev", "Pass1234!").await;
 
     // Store a refresh token
     let rt1 = token_service::generate_refresh_token();
@@ -311,7 +311,7 @@ async fn test_revoke_all_tokens() {
     .unwrap();
 
     let user = create_test_user(
-        &db, &cfg, tenant_id, &tenant_key, "revoke@pandora.dev", "Pass1234!",
+        &db, &cfg, tenant_id, &tenant_key, "revoke@ovtl.dev", "Pass1234!",
     )
     .await;
 
@@ -334,7 +334,7 @@ async fn test_revoke_all_tokens() {
     txn.commit().await.unwrap();
 
     // Verify all are revoked
-    use pandora_server::entity::refresh_tokens;
+    use ovtl_core::entity::refresh_tokens;
     use sea_orm::{ColumnTrait, QueryFilter};
     let active: Vec<refresh_tokens::Model> = refresh_tokens::Entity::find()
         .filter(refresh_tokens::Column::UserId.eq(user.id))

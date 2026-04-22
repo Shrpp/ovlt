@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::{error::AppError, services::tenant_service, state::AppState};
 
-const TENANT_HEADER: &str = "x-pandora-tenant-id";
+const TENANT_HEADER: &str = "x-ovtl-tenant-id";
 
 /// Tenant context injected into every protected request.
 /// Handlers extract it via `Extension(ctx): Extension<TenantContext>`.

@@ -220,7 +220,7 @@ async fn fetch_github_profile(access_token: &str) -> Result<OAuthProfile, AppErr
     let user: GithubUser = client
         .get("https://api.github.com/user")
         .bearer_auth(access_token)
-        .header("User-Agent", "pandora-server")
+        .header("User-Agent", "ovtl-core")
         .send()
         .await
         .map_err(|e| AppError::InvalidInput(e.to_string()))?
@@ -235,7 +235,7 @@ async fn fetch_github_profile(access_token: &str) -> Result<OAuthProfile, AppErr
         let emails: Vec<GithubEmail> = client
             .get("https://api.github.com/user/emails")
             .bearer_auth(access_token)
-            .header("User-Agent", "pandora-server")
+            .header("User-Agent", "ovtl-core")
             .send()
             .await
             .map_err(|e| AppError::InvalidInput(e.to_string()))?

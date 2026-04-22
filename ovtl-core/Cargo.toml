@@ -1,14 +1,14 @@
 [package]
-name    = "pandora-server"
+name    = "ovtl-core"
 version = "0.1.0"
 edition = "2021"
 
 [lib]
-name = "pandora_server"
+name = "ovtl_core"
 path = "src/lib.rs"
 
 [[bin]]
-name = "pandora-server"
+name = "ovtl-core"
 path = "src/main.rs"
 
 [dependencies]
