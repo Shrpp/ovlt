@@ -1892,10 +1892,12 @@ name = "pandora-server"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "base64 0.22.1",
  "chrono",
  "dotenvy",
  "hefesto",
  "hex",
+ "hmac",
  "jsonwebtoken",
  "oauth2",
  "reqwest 0.12.28",

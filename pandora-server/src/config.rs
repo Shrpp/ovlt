@@ -10,6 +10,15 @@ pub struct Config {
     pub server_host: String,
     pub server_port: u16,
     pub environment: Environment,
+    pub google_oauth: Option<OAuthProviderConfig>,
+    pub github_oauth: Option<OAuthProviderConfig>,
+}
+
+#[derive(Clone, Debug)]
+pub struct OAuthProviderConfig {
+    pub client_id: String,
+    pub client_secret: String,
+    pub redirect_url: String,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -38,12 +47,30 @@ impl Config {
                 "production" => Environment::Production,
                 _ => Environment::Development,
             },
+            google_oauth: opt_oauth("GOOGLE"),
+            github_oauth: opt_oauth("GITHUB"),
         })
     }
 
     pub fn is_production(&self) -> bool {
         self.environment == Environment::Production
     }
+
+    pub fn oauth_for(&self, provider: &str) -> Option<&OAuthProviderConfig> {
+        match provider {
+            "google" => self.google_oauth.as_ref(),
+            "github" => self.github_oauth.as_ref(),
+            _ => None,
+        }
+    }
+}
+
+fn opt_oauth(prefix: &str) -> Option<OAuthProviderConfig> {
+    Some(OAuthProviderConfig {
+        client_id: env::var(format!("{prefix}_CLIENT_ID")).ok()?,
+        client_secret: env::var(format!("{prefix}_CLIENT_SECRET")).ok()?,
+        redirect_url: env::var(format!("{prefix}_REDIRECT_URL")).ok()?,
+    })
 }
 
 fn require(key: &str) -> Result<String, String> {

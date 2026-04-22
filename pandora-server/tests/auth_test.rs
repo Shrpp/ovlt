@@ -2,7 +2,7 @@ use pandora_server::{
     config::Config,
     db,
     entity::tenants,
-    services::{token_service, user_service},
+    services::{oauth_service, token_service, user_service},
 };
 use sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, Set};
 use uuid::Uuid;
@@ -345,4 +345,26 @@ async fn test_revoke_all_tokens() {
     assert!(active.is_empty(), "all tokens must be revoked");
 
     println!("✓ Revoke all tokens OK");
+}
+
+#[tokio::test]
+async fn test_oauth_state_roundtrip() {
+    dotenvy::dotenv().ok();
+    let cfg = Config::from_env().expect("config");
+    let tenant_id = Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
+
+    // State encodes tenant_id and survives a round-trip
+    let state = oauth_service::generate_state(tenant_id, &cfg.jwt_secret);
+    let recovered = oauth_service::verify_state(&state, &cfg.jwt_secret);
+    assert_eq!(recovered, Some(tenant_id), "state must decode to original tenant_id");
+
+    // Tampered state must be rejected
+    let mut bad = state.clone();
+    bad.push('x');
+    assert_eq!(oauth_service::verify_state(&bad, &cfg.jwt_secret), None);
+
+    // Wrong secret must be rejected
+    assert_eq!(oauth_service::verify_state(&state, "wrong_secret"), None);
+
+    println!("✓ OAuth HMAC state roundtrip OK");
 }

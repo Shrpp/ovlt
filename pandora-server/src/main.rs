@@ -72,10 +72,14 @@ fn build_router(state: AppState) -> Router {
             tenant_middleware,
         ));
 
+    // OAuth callbacks — no tenant middleware (tenant_id comes from state param)
+    let oauth_callbacks = routes::auth::callback_router();
+
     Router::new()
         .merge(public)
         .merge(auth_public)
         .merge(auth_protected)
+        .merge(oauth_callbacks)
         .with_state(state)
 }
 
