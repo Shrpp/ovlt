@@ -1,4 +1,5 @@
 use axum::{routing::get, Json, Router};
+use migration::{Migrator, MigratorTrait};
 use ovtl_core::{
     config::{self, Environment},
     db,
@@ -8,7 +9,7 @@ use ovtl_core::{
         tenant::tenant_middleware,
     },
     routes,
-    services::{lockout_service, token_service},
+    services::{bootstrap_service, lockout_service, token_service},
     state::AppState,
 };
 use serde_json::json;
@@ -30,6 +31,19 @@ async fn main() {
 
     let db = db::connect(&config.database_url).await.unwrap_or_else(|e| {
         eprintln!("DB connection failed: {e}");
+        std::process::exit(1);
+    });
+
+    if std::env::args().any(|a| a == "--migrate") {
+        Migrator::up(&db, None).await.unwrap_or_else(|e| {
+            eprintln!("Migration failed: {e}");
+            std::process::exit(1);
+        });
+        tracing::info!("migrations applied");
+    }
+
+    bootstrap_service::run(&db, &config).await.unwrap_or_else(|e| {
+        eprintln!("Bootstrap failed: {e}");
         std::process::exit(1);
     });
 
@@ -94,12 +108,14 @@ fn build_router(state: AppState) -> Router {
         ));
 
     let oauth_callbacks = routes::auth::callback_router();
+    let admin = routes::tenants::router();
 
     Router::new()
         .merge(public)
         .merge(auth_public)
         .merge(auth_protected)
         .merge(oauth_callbacks)
+        .merge(admin)
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             security_headers_middleware,

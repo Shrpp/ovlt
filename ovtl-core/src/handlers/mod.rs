@@ -5,3 +5,4 @@ pub mod oauth;
 pub mod refresh;
 pub mod register;
 pub mod revoke;
+pub mod tenants;

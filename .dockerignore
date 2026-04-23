@@ -1,0 +1,8 @@
+target/
+.git/
+.env
+.env.*
+.claude/
+ovtl-core/.env
+ovtl-core/.env.*
+ovtl-core/migration/.env

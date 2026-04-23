@@ -17,5 +17,31 @@ services:
       retries: 5
     restart: unless-stopped
 
+  ovtl-core:
+    build: .
+    container_name: ovtl-core
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: "postgresql://ovtl:ovtl@postgres:5432/ovtl"
+      JWT_SECRET: "change-me-in-dev-min-32-chars-jwt-secret-here"
+      MASTER_ENCRYPTION_KEY: "change-me-in-dev-min-32-chars-master-key-here"
+      TENANT_WRAP_KEY: "change-me-in-dev-min-32-chars-wrap-key-here!!"
+      ENVIRONMENT: development
+      SERVER_HOST: "0.0.0.0"
+      SERVER_PORT: "3000"
+      CORS_ALLOWED_ORIGINS: "*"
+      # Admin key — protege POST/GET /tenants
+      OVTL_ADMIN_KEY: "dev-admin-key"
+      # Bootstrap — crea el tenant master + admin al primer arranque si no existen tenants
+      OVTL_BOOTSTRAP_TENANT_SLUG: "master"
+      OVTL_BOOTSTRAP_ADMIN_EMAIL: "admin@example.com"
+      OVTL_BOOTSTRAP_ADMIN_PASSWORD: "Admin1234!"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    command: ["./ovtl-core", "--migrate"]
+
 volumes:
   postgres_data:

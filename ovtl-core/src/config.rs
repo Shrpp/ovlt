@@ -18,6 +18,15 @@ pub struct Config {
     pub cors_allowed_origins: Vec<String>,
     pub google_oauth: Option<OAuthProviderConfig>,
     pub github_oauth: Option<OAuthProviderConfig>,
+    /// Static key required in `X-OVTL-Admin-Key` to call admin endpoints.
+    /// If not set, admin endpoints return 404.
+    pub admin_key: Option<String>,
+    /// Bootstrap: slug for the first tenant created on startup. Default: "master".
+    pub bootstrap_tenant_slug: Option<String>,
+    /// Bootstrap: admin user email created in the first tenant on startup.
+    pub bootstrap_admin_email: Option<String>,
+    /// Bootstrap: admin user password. Required if bootstrap_admin_email is set.
+    pub bootstrap_admin_password: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -100,6 +109,10 @@ impl Config {
             cors_allowed_origins,
             google_oauth: opt_oauth("GOOGLE"),
             github_oauth: opt_oauth("GITHUB"),
+            admin_key: env::var("OVTL_ADMIN_KEY").ok(),
+            bootstrap_tenant_slug: env::var("OVTL_BOOTSTRAP_TENANT_SLUG").ok(),
+            bootstrap_admin_email: env::var("OVTL_BOOTSTRAP_ADMIN_EMAIL").ok(),
+            bootstrap_admin_password: env::var("OVTL_BOOTSTRAP_ADMIN_PASSWORD").ok(),
         })
     }
 
