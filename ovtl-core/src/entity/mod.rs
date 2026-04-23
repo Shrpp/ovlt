@@ -1,7 +1,10 @@
 pub mod audit_log;
+pub mod authorization_codes;
 pub mod login_attempts;
 pub mod oauth_accounts;
+pub mod oauth_clients;
 pub mod prelude;
 pub mod refresh_tokens;
+pub mod sessions;
 pub mod tenants;
 pub mod users;

@@ -40,7 +40,7 @@ pub async fn login(
 
     // Normalize email before lookup — consistent with registration.
     let email_normalized = payload.email.trim().to_lowercase();
-    let email_lookup = hefesto::hash_for_lookup(&email_normalized, &ctx.tenant_key);
+    let email_lookup = hefesto::hash_for_lookup(&email_normalized, &ctx.tenant_key)?;
 
     // Check account lockout before touching the DB user record.
     if lockout_service::is_locked(&state.db, ctx.tenant_id, &email_lookup).await? {

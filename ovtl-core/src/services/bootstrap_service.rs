@@ -44,7 +44,7 @@ pub async fn run(db: &DatabaseConnection, config: &Config) -> Result<(), AppErro
     .await?;
 
     let email_normalized = email.trim().to_lowercase();
-    let email_lookup = hefesto::hash_for_lookup(&email_normalized, &tenant_key_plain);
+    let email_lookup = hefesto::hash_for_lookup(&email_normalized, &tenant_key_plain)?;
     let email_encrypted = hefesto::encrypt(
         &email_normalized,
         &tenant_key_plain,

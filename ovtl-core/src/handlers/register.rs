@@ -41,7 +41,7 @@ pub async fn register(
     // Normalize email — prevents duplicate accounts differing only by case.
     let email_normalized = payload.email.trim().to_lowercase();
 
-    let email_lookup = hefesto::hash_for_lookup(&email_normalized, &ctx.tenant_key);
+    let email_lookup = hefesto::hash_for_lookup(&email_normalized, &ctx.tenant_key)?;
     let email_encrypted = hefesto::encrypt(
         &email_normalized,
         &ctx.tenant_key,

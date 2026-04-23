@@ -9,7 +9,7 @@ use ovtl_core::{
         tenant::tenant_middleware,
     },
     routes,
-    services::{bootstrap_service, lockout_service, token_service},
+    services::{bootstrap_service, jwk_service::JwkService, lockout_service, token_service},
     state::AppState,
 };
 use serde_json::json;
@@ -47,7 +47,16 @@ async fn main() {
         std::process::exit(1);
     });
 
-    let state = AppState::new(db.clone(), config.clone());
+    let jwk = match &config.rsa_private_key {
+        Some(pem_b64) => JwkService::from_pem(pem_b64),
+        None => JwkService::generate(),
+    }
+    .unwrap_or_else(|e| {
+        eprintln!("JWK init failed: {e}");
+        std::process::exit(1);
+    });
+
+    let state = AppState::new(db.clone(), config.clone(), jwk);
 
     // Background cleanup every 6 hours
     tokio::spawn(async move {
@@ -98,6 +107,7 @@ fn build_router(state: AppState) -> Router {
 
     let auth_protected = routes::auth::protected_router()
         .merge(routes::user::router())
+        .merge(routes::clients::router())
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             auth_middleware,
@@ -109,6 +119,7 @@ fn build_router(state: AppState) -> Router {
 
     let oauth_callbacks = routes::auth::callback_router();
     let admin = routes::tenants::router();
+    let oidc = routes::oauth_as::router();
 
     Router::new()
         .merge(public)
@@ -116,6 +127,7 @@ fn build_router(state: AppState) -> Router {
         .merge(auth_protected)
         .merge(oauth_callbacks)
         .merge(admin)
+        .merge(oidc)
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             security_headers_middleware,

@@ -27,6 +27,11 @@ pub struct Config {
     pub bootstrap_admin_email: Option<String>,
     /// Bootstrap: admin user password. Required if bootstrap_admin_email is set.
     pub bootstrap_admin_password: Option<String>,
+    /// Base URL used as `iss` in id_tokens and in OIDC discovery. Default: http://localhost:3000.
+    pub ovtl_issuer: String,
+    /// RSA private key in PKCS#8 PEM format (base64-encoded). If not set, an ephemeral key
+    /// is generated on startup — tokens won't survive restarts. Set in production.
+    pub rsa_private_key: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -113,6 +118,9 @@ impl Config {
             bootstrap_tenant_slug: env::var("OVTL_BOOTSTRAP_TENANT_SLUG").ok(),
             bootstrap_admin_email: env::var("OVTL_BOOTSTRAP_ADMIN_EMAIL").ok(),
             bootstrap_admin_password: env::var("OVTL_BOOTSTRAP_ADMIN_PASSWORD").ok(),
+            ovtl_issuer: env::var("OVTL_ISSUER")
+                .unwrap_or_else(|_| "http://localhost:3000".into()),
+            rsa_private_key: env::var("RSA_PRIVATE_KEY").ok(),
         })
     }
 

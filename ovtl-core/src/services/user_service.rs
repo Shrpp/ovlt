@@ -34,6 +34,13 @@ pub async fn find_by_email_lookup(
         .await?)
 }
 
+pub async fn find_by_id(
+    txn: &DatabaseTransaction,
+    id: Uuid,
+) -> Result<Option<users::Model>, AppError> {
+    Ok(users::Entity::find_by_id(id).one(txn).await?)
+}
+
 pub async fn email_lookup_exists(
     txn: &DatabaseTransaction,
     lookup: &str,

@@ -282,7 +282,7 @@ pub async fn find_or_create_user(
     }
 
     // 2. Check if a local user exists with this email
-    let email_lookup = hefesto::hash_for_lookup(&profile.email, tenant_key);
+    let email_lookup = hefesto::hash_for_lookup(&profile.email, tenant_key)?;
     let existing_user =
         user_service::find_by_email_lookup(txn, &email_lookup).await?;
 

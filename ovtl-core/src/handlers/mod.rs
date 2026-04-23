@@ -1,8 +1,11 @@
+pub mod clients;
 pub mod login;
 pub mod logout;
 pub mod me;
 pub mod oauth;
+pub mod oauth_as;
 pub mod refresh;
 pub mod register;
 pub mod revoke;
 pub mod tenants;
+pub mod well_known;
