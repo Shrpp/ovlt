@@ -1,5 +1,6 @@
 use axum::{extract::State, response::IntoResponse, Extension, Json};
 use serde::{Deserialize, Serialize};
+use validator::Validate;
 
 use crate::{
     db,
@@ -9,9 +10,11 @@ use crate::{
     state::AppState,
 };
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct LoginRequest {
+    #[validate(email)]
     pub email: String,
+    #[validate(length(min = 8, max = 128))]
     pub password: String,
 }
 
@@ -27,6 +30,10 @@ pub async fn login(
     Extension(ctx): Extension<TenantContext>,
     Json(payload): Json<LoginRequest>,
 ) -> Result<impl IntoResponse, AppError> {
+    payload
+        .validate()
+        .map_err(|e| AppError::InvalidInput(e.to_string()))?;
+
     let email_lookup = hefesto::hash_for_lookup(&payload.email, &ctx.tenant_key);
 
     let txn = db::begin_tenant_txn(&state.db, ctx.tenant_id).await?;
