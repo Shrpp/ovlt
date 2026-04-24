@@ -61,7 +61,15 @@ pub async fn create_client(
         .validate()
         .map_err(|e| AppError::InvalidInput(e.to_string()))?;
 
-    if payload.redirect_uris.is_empty() {
+    let is_confidential = payload.is_confidential.unwrap_or(true);
+    let grant_types = payload
+        .grant_types
+        .unwrap_or_else(|| vec!["authorization_code".into()]);
+
+    // Machine (M2M) clients using client_credentials exclusively don't need redirect_uris.
+    let is_m2m = grant_types.iter().any(|g| g == "client_credentials")
+        && !grant_types.iter().any(|g| g == "authorization_code");
+    if !is_m2m && payload.redirect_uris.is_empty() {
         return Err(AppError::InvalidInput("redirect_uris must not be empty".into()));
     }
 
@@ -76,10 +84,8 @@ pub async fn create_client(
             scopes: payload
                 .scopes
                 .unwrap_or_else(|| vec!["openid".into(), "email".into(), "profile".into()]),
-            grant_types: payload
-                .grant_types
-                .unwrap_or_else(|| vec!["authorization_code".into()]),
-            is_confidential: payload.is_confidential.unwrap_or(true),
+            grant_types,
+            is_confidential,
         },
     )
     .await?;
@@ -91,7 +97,7 @@ pub async fn create_client(
         Json(ClientResponse {
             id: model.id.to_string(),
             client_id: model.client_id,
-            client_secret: Some(plain_secret),
+            client_secret: plain_secret,
             name: model.name,
             redirect_uris: client_service::scopes_to_vec(&model.redirect_uris),
             scopes: client_service::scopes_to_vec(&model.scopes),

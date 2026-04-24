@@ -92,6 +92,18 @@ impl Client {
 
     // ── Tenants ───────────────────────────────────────────────────────────────
 
+    pub async fn list_tenant_slugs(&self) -> ApiResult<Vec<(String, String)>> {
+        #[derive(Deserialize)]
+        struct Entry { slug: String, name: String }
+        let resp = self
+            .inner
+            .get(format!("{}/tenants/slugs", self.base_url))
+            .send()
+            .await?;
+        let entries: Vec<Entry> = self.check(resp).await?;
+        Ok(entries.into_iter().map(|e| (e.slug, e.name)).collect())
+    }
+
     pub async fn list_tenants(&self) -> ApiResult<Vec<Tenant>> {
         let resp = self
             .inner
@@ -131,6 +143,8 @@ impl Client {
         name: &str,
         redirect_uris: Vec<String>,
         scopes: Vec<String>,
+        is_confidential: bool,
+        grant_types: Vec<String>,
     ) -> ApiResult<OAuthClient> {
         let resp = self
             .inner
@@ -140,6 +154,8 @@ impl Client {
                 "name": name,
                 "redirect_uris": redirect_uris,
                 "scopes": scopes,
+                "is_confidential": is_confidential,
+                "grant_types": grant_types,
             }))
             .send()
             .await?;

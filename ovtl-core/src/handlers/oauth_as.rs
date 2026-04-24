@@ -1,7 +1,7 @@
 use axum::{
     extract::{Form, Query, State},
     http::{HeaderMap, StatusCode},
-    response::{IntoResponse, Redirect},
+    response::{IntoResponse, Response, Redirect},
     Json,
 };
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
@@ -135,18 +135,21 @@ pub async fn authorize(
 #[derive(Debug, Deserialize)]
 pub struct TokenRequest {
     pub grant_type: String,
-    pub code: String,
-    pub redirect_uri: String,
+    pub code: Option<String>,
+    pub redirect_uri: Option<String>,
     pub client_id: String,
     pub client_secret: Option<String>,
-    pub code_verifier: String,
+    pub code_verifier: Option<String>,
+    pub scope: Option<String>,      // for client_credentials
 }
 
 #[derive(Debug, Serialize)]
 pub struct TokenResponse {
     pub access_token: String,
-    pub refresh_token: String,
-    pub id_token: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub refresh_token: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id_token: Option<String>,
     pub token_type: &'static str,
     pub expires_in: i64,
     pub scope: String,
@@ -167,13 +170,21 @@ struct IdTokenClaims {
 pub async fn token(
     State(state): State<AppState>,
     Form(req): Form<TokenRequest>,
-) -> Result<impl IntoResponse, AppError> {
-    if req.grant_type != "authorization_code" {
-        return Err(AppError::InvalidInput("unsupported grant_type".into()));
+) -> Result<Response, AppError> {
+    match req.grant_type.as_str() {
+        "authorization_code" => token_authorization_code(state, req).await.map(IntoResponse::into_response),
+        "client_credentials" => token_client_credentials(state, req).await.map(IntoResponse::into_response),
+        _ => Err(AppError::InvalidInput("unsupported grant_type".into())),
     }
+}
+
+async fn token_authorization_code(state: AppState, req: TokenRequest) -> Result<impl IntoResponse, AppError> {
+    let code = req.code.as_deref().ok_or_else(|| AppError::InvalidInput("code required".into()))?;
+    let redirect_uri = req.redirect_uri.as_deref().ok_or_else(|| AppError::InvalidInput("redirect_uri required".into()))?;
+    let code_verifier = req.code_verifier.as_deref().ok_or_else(|| AppError::InvalidInput("code_verifier required".into()))?;
 
     // 1. Fetch the authorization code (no RLS — codes table has no policy).
-    let auth_code = authorization_codes::Entity::find_by_id(&req.code)
+    let auth_code = authorization_codes::Entity::find_by_id(code)
         .one(&state.db)
         .await?
         .ok_or_else(|| AppError::InvalidInput("invalid code".into()))?;
@@ -185,12 +196,12 @@ pub async fn token(
     if auth_code.used_at.is_some() {
         return Err(AppError::InvalidInput("code already used".into()));
     }
-    if auth_code.redirect_uri != req.redirect_uri {
+    if auth_code.redirect_uri != redirect_uri {
         return Err(AppError::InvalidInput("redirect_uri mismatch".into()));
     }
 
     // 2. Verify PKCE S256: BASE64URL(SHA256(code_verifier)) == stored code_challenge.
-    let computed = URL_SAFE_NO_PAD.encode(Sha256::digest(req.code_verifier.as_bytes()));
+    let computed = URL_SAFE_NO_PAD.encode(Sha256::digest(code_verifier.as_bytes()));
     if computed != auth_code.code_challenge {
         return Err(AppError::InvalidInput("invalid code_verifier".into()));
     }
@@ -247,10 +258,10 @@ pub async fn token(
     )?;
 
     // 6. Issue access + refresh tokens.
-    let roles = role_service::list_names_for_user(&txn, user.id)
+    let roles = role_service::list_names_for_user(&txn, user.id, tenant_id)
         .await
         .unwrap_or_default();
-    let permissions = permission_service::list_names_for_user(&txn, user.id)
+    let permissions = permission_service::list_names_for_user(&txn, user.id, tenant_id)
         .await
         .unwrap_or_default();
 
@@ -296,11 +307,62 @@ pub async fn token(
 
     Ok(Json(TokenResponse {
         access_token,
-        refresh_token,
-        id_token,
+        refresh_token: Some(refresh_token),
+        id_token: Some(id_token),
         token_type: "Bearer",
         expires_in: state.config.jwt_expiration_minutes * 60,
         scope: scope_str,
+    }))
+}
+
+async fn token_client_credentials(state: AppState, req: TokenRequest) -> Result<impl IntoResponse, AppError> {
+    // 1. Find client globally (cross-tenant, bypasses RLS via superuser connection).
+    let client = client_service::find_by_client_id_global(&state.db, &req.client_id)
+        .await?
+        .ok_or(AppError::Unauthorized)?;
+
+    // 2. Must be confidential and support client_credentials grant.
+    if !client.is_confidential {
+        return Err(AppError::Unauthorized);
+    }
+    let grant_types = client_service::scopes_to_vec(&client.grant_types);
+    if !grant_types.iter().any(|g| g == "client_credentials") {
+        return Err(AppError::InvalidInput("client does not support client_credentials".into()));
+    }
+
+    // 3. Verify secret.
+    let secret = req.client_secret.as_deref().ok_or(AppError::Unauthorized)?;
+    if !client_service::verify_secret(secret, &client.client_secret) {
+        return Err(AppError::Unauthorized);
+    }
+
+    // 4. Resolve scopes (intersection of requested + registered).
+    let registered_scopes = client_service::scopes_to_vec(&client.scopes);
+    let requested_scopes: Vec<String> = req.scope
+        .as_deref()
+        .map(|s| s.split_whitespace().map(|s| s.to_owned()).collect())
+        .unwrap_or_else(|| registered_scopes.clone());
+    let final_scopes: Vec<String> = requested_scopes
+        .into_iter()
+        .filter(|s| registered_scopes.contains(s))
+        .collect();
+
+    // 5. Issue access token (no user context, sub = client_id).
+    let access_token = token_service::generate_client_access_token(
+        &client.client_id,
+        client.tenant_id,
+        &final_scopes,
+        &state.config.jwt_secret,
+        state.config.jwt_expiration_minutes,
+    )?;
+
+    Ok(Json(TokenResponse {
+        access_token,
+        refresh_token: None,
+        id_token: None,
+        token_type: "Bearer",
+        expires_in: state.config.jwt_expiration_minutes * 60,
+        scope: final_scopes.join(" "),
     }))
 }
 

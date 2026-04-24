@@ -100,6 +100,23 @@ pub async fn create_tenant(
     ))
 }
 
+#[derive(Debug, Serialize)]
+pub struct TenantSlugEntry {
+    pub slug: String,
+    pub name: String,
+}
+
+pub async fn list_tenant_slugs(
+    State(state): State<AppState>,
+) -> Result<impl IntoResponse, AppError> {
+    let rows = tenants::Entity::find().all(&state.db).await?;
+    let resp: Vec<TenantSlugEntry> = rows
+        .into_iter()
+        .map(|t| TenantSlugEntry { slug: t.slug, name: t.name })
+        .collect();
+    Ok(Json(resp))
+}
+
 pub async fn list_tenants(
     State(state): State<AppState>,
     headers: HeaderMap,

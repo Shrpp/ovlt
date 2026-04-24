@@ -99,10 +99,10 @@ pub async fn login(
         &state.config.master_encryption_key,
     )?;
 
-    let roles = role_service::list_names_for_user(&txn, user.id)
+    let roles = role_service::list_names_for_user(&txn, user.id, ctx.tenant_id)
         .await
         .unwrap_or_default();
-    let permissions = permission_service::list_names_for_user(&txn, user.id)
+    let permissions = permission_service::list_names_for_user(&txn, user.id, ctx.tenant_id)
         .await
         .unwrap_or_default();
 

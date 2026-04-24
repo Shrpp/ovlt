@@ -6,6 +6,32 @@ use ratatui::{
     Frame,
 };
 
+fn render_type_toggle(frame: &mut Frame, area: Rect, client_type: u8, active: bool) {
+    let border_style = if active { Style::default().fg(Color::Cyan) } else { Style::default().fg(Color::DarkGray) };
+    let title = if active { "Type  ←/→" } else { "Type" };
+    let labels = ["Confidential", "SPA/Mobile", "Machine (M2M)"];
+    let mut spans: Vec<Span> = Vec::new();
+    for (i, label) in labels.iter().enumerate() {
+        if i > 0 { spans.push(Span::raw("   ")); }
+        if i as u8 == client_type {
+            spans.push(Span::styled(
+                format!("● {label}"),
+                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            ));
+        } else {
+            spans.push(Span::styled(
+                format!("○ {label}"),
+                Style::default().fg(Color::DarkGray),
+            ));
+        }
+    }
+    frame.render_widget(
+        Paragraph::new(Line::from(spans))
+            .block(Block::default().borders(Borders::ALL).title(title).border_style(border_style)),
+        area,
+    );
+}
+
 use crate::app::{App, Modal, QuickStartState};
 
 pub fn render(frame: &mut Frame, app: &App) {
@@ -56,16 +82,7 @@ pub fn render(frame: &mut Frame, app: &App) {
             &[&qs.tenant_name, &qs.tenant_slug],
             &[false, false],
         ),
-        2 => render_form_step(
-            frame,
-            inner,
-            qs,
-            "Step 2 of 4 — Create OAuth Client",
-            2,
-            &["Name", "Redirect URI", "Scopes"],
-            &[&qs.client_name, &qs.redirect_uri, &qs.scopes],
-            &[false, false, false],
-        ),
+        2 => render_client_step(frame, inner, qs),
         3 => render_form_step(
             frame,
             inner,
@@ -177,6 +194,69 @@ fn render_form_step(
         Paragraph::new(hints).alignment(Alignment::Center),
         chunks[hint_idx],
     );
+}
+
+fn render_client_step(frame: &mut Frame, area: Rect, qs: &QuickStartState) {
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(1), // header
+            Constraint::Length(1), // spacer
+            Constraint::Length(3), // Name
+            Constraint::Length(3), // Redirect URI
+            Constraint::Length(3), // Scopes
+            Constraint::Length(3), // Type toggle
+            Constraint::Min(1),
+            Constraint::Length(1), // error
+            Constraint::Length(1), // hints
+        ])
+        .split(area);
+
+    let dots = progress_dots(2);
+    let header = Line::from(vec![
+        Span::styled("Step 2 of 4 — Create OAuth Client", Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+        Span::raw("  "),
+        Span::styled(dots, Style::default().fg(Color::Cyan)),
+    ]);
+    frame.render_widget(Paragraph::new(header), chunks[0]);
+
+    let fields = [
+        ("Name", &qs.client_name, false, 0usize),
+        ("Redirect URI", &qs.redirect_uri, false, 1),
+        ("Scopes", &qs.scopes, false, 2),
+    ];
+    for (label, value, _masked, idx) in &fields {
+        let active = qs.field == *idx;
+        let border_style = if active { Style::default().fg(Color::Cyan) } else { Style::default().fg(Color::DarkGray) };
+        let display = if active { format!("{value}█") } else { value.to_string() };
+        frame.render_widget(
+            Paragraph::new(display)
+                .block(Block::default().borders(Borders::ALL).title(*label).border_style(border_style)),
+            chunks[2 + idx],
+        );
+    }
+
+    render_type_toggle(frame, chunks[5], qs.client_type, qs.field == 3);
+
+    if let Some(err) = &qs.error {
+        frame.render_widget(
+            Paragraph::new(Span::styled(err.as_str(), Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)))
+                .alignment(Alignment::Center),
+            chunks[7],
+        );
+    }
+
+    let hints = Line::from(vec![
+        Span::styled("Tab", Style::default().fg(Color::Cyan)),
+        Span::styled(" Next   ", Style::default().fg(Color::DarkGray)),
+        Span::styled("←/→", Style::default().fg(Color::Cyan)),
+        Span::styled(" Type   ", Style::default().fg(Color::DarkGray)),
+        Span::styled("Enter", Style::default().fg(Color::Cyan)),
+        Span::styled(" Continue   ", Style::default().fg(Color::DarkGray)),
+        Span::styled("Esc", Style::default().fg(Color::Cyan)),
+        Span::styled(" Close", Style::default().fg(Color::DarkGray)),
+    ]);
+    frame.render_widget(Paragraph::new(hints).alignment(Alignment::Center), chunks[8]);
 }
 
 fn render_summary(frame: &mut Frame, area: Rect, qs: &QuickStartState, base_url: &str) {

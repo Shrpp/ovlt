@@ -5,8 +5,9 @@ pub enum AppMode {
     Login {
         email: String,
         password: String,
-        slug: String,   // tenant slug, defaults to "master"
-        field: usize,   // 0=email, 1=password, 2=slug
+        slug: String,       // currently selected slug
+        slug_idx: usize,    // selected index in App::tenant_options (usize::MAX = custom text)
+        field: usize,       // 0=email, 1=password, 2=tenant picker
         error: Option<String>,
     },
     Admin,
@@ -37,6 +38,7 @@ pub struct QuickStartState {
     pub client_name: String,
     pub redirect_uri: String,
     pub scopes: String,
+    pub client_type: u8,  // 0=Confidential, 1=SPA/Mobile, 2=Machine
     // Step 3 — user
     pub user_email: String,
     pub user_password: String,
@@ -60,6 +62,7 @@ impl Default for QuickStartState {
             client_name: String::new(),
             redirect_uri: String::from("http://localhost:8080/callback"),
             scopes: String::from("openid email profile"),
+            client_type: 0,
             user_email: String::new(),
             user_password: String::new(),
             created_tenant_id: None,
@@ -77,7 +80,7 @@ impl Default for QuickStartState {
 pub enum Modal {
     None,
     CreateTenant { name: String, slug: String, field: usize },
-    CreateClient { name: String, redirect_uri: String, scopes: String, field: usize },
+    CreateClient { name: String, redirect_uri: String, scopes: String, client_type: u8, field: usize },
     CreateUser { email: String, password: String, field: usize },
     ConfirmDelete { id: String, label: String },
     ShowSecret { client_id: String, secret: String },
@@ -114,6 +117,8 @@ pub struct App {
     pub focus: Focus,
     pub tab: Tab,
     pub modal: Modal,
+
+    pub tenant_options: Vec<(String, String)>,  // (slug, name) fetched before login
 
     pub tenants: Vec<Tenant>,
     pub tenant_selected: usize,
@@ -156,12 +161,14 @@ impl App {
                 email: String::new(),
                 password: String::new(),
                 slug: String::from("master"),
+                slug_idx: 0,
                 field: 0,
                 error: None,
             },
             focus: Focus::Sidebar,
             tab: Tab::Clients,
             modal: Modal::None,
+            tenant_options: vec![],
 
             tenants: vec![],
             tenant_selected: 0,

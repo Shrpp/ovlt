@@ -1,4 +1,4 @@
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseTransaction, EntityTrait, QueryFilter, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, DatabaseTransaction, EntityTrait, QueryFilter, Set};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
@@ -13,14 +13,21 @@ pub struct CreateClientInput {
     pub is_confidential: bool,
 }
 
-/// Returns `(model, plain_secret)`. Plain secret is returned only once — caller must surface it.
+/// Returns `(model, plain_secret)`.
+/// For confidential clients, `plain_secret` is `Some(secret)` — returned only once, caller must surface it.
+/// For public clients, `plain_secret` is `None` and the stored secret is `""`.
 pub async fn create(
     txn: &DatabaseTransaction,
     input: CreateClientInput,
-) -> Result<(oauth_clients::Model, String), AppError> {
-    let plain_secret = hex::encode(Sha256::digest(Uuid::new_v4().as_bytes()))
-        + &hex::encode(Sha256::digest(Uuid::new_v4().as_bytes()));
-    let secret_hash = hex::encode(Sha256::digest(plain_secret.as_bytes()));
+) -> Result<(oauth_clients::Model, Option<String>), AppError> {
+    let (secret_hash, plain_secret) = if input.is_confidential {
+        let plain = hex::encode(Sha256::digest(Uuid::new_v4().as_bytes()))
+            + &hex::encode(Sha256::digest(Uuid::new_v4().as_bytes()));
+        let hash = hex::encode(Sha256::digest(plain.as_bytes()));
+        (hash, Some(plain))
+    } else {
+        (String::new(), None)
+    };
 
     let model = oauth_clients::ActiveModel {
         id: Set(Uuid::new_v4()),
@@ -40,6 +47,19 @@ pub async fn create(
     .await?;
 
     Ok((model, plain_secret))
+}
+
+/// Find a client by client_id across all tenants.
+/// Uses `DatabaseConnection` (superuser, bypasses RLS) — for client_credentials flow.
+pub async fn find_by_client_id_global(
+    db: &DatabaseConnection,
+    client_id: &str,
+) -> Result<Option<oauth_clients::Model>, AppError> {
+    Ok(oauth_clients::Entity::find()
+        .filter(oauth_clients::Column::ClientId.eq(client_id))
+        .filter(oauth_clients::Column::IsActive.eq(true))
+        .one(db)
+        .await?)
 }
 
 pub async fn find_by_client_id(

@@ -15,10 +15,9 @@ pub async fn begin_tenant_txn(
     tenant_id: Uuid,
 ) -> Result<DatabaseTransaction, DbErr> {
     let txn = db.begin().await?;
-    txn.execute_unprepared(&format!(
-        "SET LOCAL ROLE ovtl_rls; SET LOCAL app.tenant_id = '{tenant_id}'"
-    ))
-    .await?;
+    txn.execute_unprepared("SET LOCAL ROLE ovtl_rls").await?;
+    txn.execute_unprepared(&format!("SET LOCAL app.tenant_id = '{tenant_id}'"))
+        .await?;
     Ok(txn)
 }
 

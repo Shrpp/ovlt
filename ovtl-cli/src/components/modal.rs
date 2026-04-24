@@ -208,7 +208,10 @@ pub fn render_edit_user(
         permissions
             .iter()
             .take(perms_visible as usize)
-            .map(|p| ListItem::new(Span::styled(format!("  {p}"), Style::default().fg(Color::Yellow))))
+            .map(|p| ListItem::new(Line::from(vec![
+                Span::styled("  ● ", Style::default().fg(Color::Yellow)),
+                Span::styled(p.as_str(), Style::default().fg(Color::White)),
+            ])))
             .collect()
     };
     let mut dummy_state2 = ListState::default();
@@ -237,7 +240,7 @@ pub fn render_edit_role(
     perm_selected: usize,
 ) {
     let perms_visible = all_permissions.len().min(6).max(1) as u16;
-    let height = 3 + 3 + 1 + perms_visible + 2;
+    let height = 3 + 3 + 1 + perms_visible + 1 + 1 + 2; // name+desc+header+perms+spacer+hints+borders
     let area = centered_rect(60, height, frame.area());
     frame.render_widget(Clear, area);
 
@@ -386,6 +389,105 @@ pub fn render_user_roles(
         Paragraph::new(hints).alignment(Alignment::Center),
         chunks[hint_idx],
     );
+}
+
+/// Create-client modal with text fields + visual type toggle.
+pub fn render_create_client(
+    frame: &mut Frame,
+    name: &str,
+    redirect_uri: &str,
+    scopes: &str,
+    client_type: u8,
+    field: usize,
+) {
+    let area = centered_rect(62, 17, frame.area());
+    frame.render_widget(Clear, area);
+
+    let block = Block::default()
+        .title(" New Client ")
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Cyan));
+    frame.render_widget(block, area);
+
+    let inner = Rect { x: area.x + 2, y: area.y + 1, width: area.width - 4, height: area.height - 2 };
+
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3), // Name
+            Constraint::Length(3), // Redirect URI
+            Constraint::Length(3), // Scopes
+            Constraint::Length(3), // Type toggle
+            Constraint::Min(1),
+            Constraint::Length(1), // hints
+        ])
+        .split(inner);
+
+    let border = |active: bool| {
+        if active { Style::default().fg(Color::Cyan) } else { Style::default().fg(Color::DarkGray) }
+    };
+
+    // Name
+    let a = field == 0;
+    frame.render_widget(
+        Paragraph::new(if a { format!("{name}█") } else { name.to_string() })
+            .block(Block::default().borders(Borders::ALL).title("Name").border_style(border(a))),
+        chunks[0],
+    );
+
+    // Redirect URI
+    let a = field == 1;
+    frame.render_widget(
+        Paragraph::new(if a { format!("{redirect_uri}█") } else { redirect_uri.to_string() })
+            .block(Block::default().borders(Borders::ALL).title("Redirect URI").border_style(border(a))),
+        chunks[1],
+    );
+
+    // Scopes
+    let a = field == 2;
+    frame.render_widget(
+        Paragraph::new(if a { format!("{scopes}█") } else { scopes.to_string() })
+            .block(Block::default().borders(Borders::ALL).title("Scopes").border_style(border(a))),
+        chunks[2],
+    );
+
+    // Type toggle — shows all 3 options, selected one in cyan bold
+    let type_active = field == 3;
+    let title = if type_active { "Type  ←/→" } else { "Type" };
+    let labels = ["Confidential", "SPA/Mobile", "Machine (M2M)"];
+    let mut spans: Vec<Span> = Vec::new();
+    for (i, label) in labels.iter().enumerate() {
+        if i > 0 { spans.push(Span::raw("   ")); }
+        if i as u8 == client_type {
+            spans.push(Span::styled(
+                format!("● {label}"),
+                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            ));
+        } else {
+            spans.push(Span::styled(
+                format!("○ {label}"),
+                Style::default().fg(Color::DarkGray),
+            ));
+        }
+    }
+    frame.render_widget(
+        Paragraph::new(Line::from(spans))
+            .block(Block::default().borders(Borders::ALL).title(title).border_style(border(type_active))),
+        chunks[3],
+    );
+
+    // Hints
+    let hints = Line::from(vec![
+        Span::styled("Tab", Style::default().fg(Color::Cyan)),
+        Span::styled(" Next   ", Style::default().fg(Color::DarkGray)),
+        Span::styled("←/→", Style::default().fg(Color::Cyan)),
+        Span::styled(" Type   ", Style::default().fg(Color::DarkGray)),
+        Span::styled("Enter", Style::default().fg(Color::Cyan)),
+        Span::styled(" Create   ", Style::default().fg(Color::DarkGray)),
+        Span::styled("Esc", Style::default().fg(Color::Cyan)),
+        Span::styled(" Cancel", Style::default().fg(Color::DarkGray)),
+    ]);
+    frame.render_widget(Paragraph::new(hints).alignment(Alignment::Center), chunks[5]);
 }
 
 /// Render a simple form modal with labelled fields.

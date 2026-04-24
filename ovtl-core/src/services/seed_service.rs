@@ -23,7 +23,7 @@ pub async fn seed_tenant_defaults(
     let txn = db::begin_tenant_txn(db, tenant_id).await?;
 
     // Ensure permission exists (unique constraint on tenant_id+name handles duplicates).
-    let all_perms = permission_service::list_all(&txn).await?;
+    let all_perms = permission_service::list_all(&txn, tenant_id).await?;
     let perm = if let Some(p) = all_perms.into_iter().find(|p| p.name == SUPER_ADMIN_PERM) {
         p
     } else {
@@ -39,7 +39,7 @@ pub async fn seed_tenant_defaults(
     };
 
     // Ensure role exists.
-    let all_roles = role_service::list_all(&txn).await?;
+    let all_roles = role_service::list_all(&txn, tenant_id).await?;
     let role = if let Some(r) = all_roles.into_iter().find(|r| r.name == SUPER_ADMIN_ROLE) {
         r
     } else {
@@ -70,7 +70,7 @@ pub async fn assign_super_admin_role(
 ) -> Result<(), AppError> {
     let txn = db::begin_tenant_txn(db, tenant_id).await?;
 
-    let roles = role_service::list_all(&txn).await?;
+    let roles = role_service::list_all(&txn, tenant_id).await?;
     if let Some(role) = roles.into_iter().find(|r| r.name == SUPER_ADMIN_ROLE) {
         role_service::assign(&txn, user_id, role.id, tenant_id).await?;
     }

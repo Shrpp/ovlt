@@ -22,6 +22,18 @@ pub async fn run(mut app: App) -> io::Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
+    // Pre-fetch tenant list so login can show a dropdown.
+    if let Ok(opts) = app.client.list_tenant_slugs().await {
+        if !opts.is_empty() {
+            // Sync the default slug to the first option.
+            if let AppMode::Login { slug, slug_idx, .. } = &mut app.mode {
+                *slug = opts[0].0.clone();
+                *slug_idx = 0;
+            }
+            app.tenant_options = opts;
+        }
+    }
+
     let mut client_table = StatefulTable::new();
     let mut user_table = StatefulTable::new();
     let mut session_list_state = ratatui::widgets::ListState::default();
@@ -121,13 +133,8 @@ pub async fn run(mut app: App) -> io::Result<()> {
                 Modal::CreateTenant { name, slug, field } => {
                     modal::render_form(frame, "New Tenant", &[("Name", name), ("Slug", slug)], *field);
                 }
-                Modal::CreateClient { name, redirect_uri, scopes, field } => {
-                    modal::render_form(
-                        frame,
-                        "New Client",
-                        &[("Name", name), ("Redirect URI", redirect_uri), ("Scopes", scopes)],
-                        *field,
-                    );
+                Modal::CreateClient { name, redirect_uri, scopes, client_type, field } => {
+                    modal::render_create_client(frame, name, redirect_uri, scopes, *client_type, *field);
                 }
                 Modal::CreateUser { email, password, field } => {
                     modal::render_form(
@@ -216,6 +223,7 @@ async fn handle_login_key(app: &mut App, code: KeyCode) {
         email,
         password,
         slug,
+        slug_idx,
         field,
         ..
     } = app.mode.clone()
@@ -223,36 +231,49 @@ async fn handle_login_key(app: &mut App, code: KeyCode) {
         return;
     };
 
+    let opts = app.tenant_options.clone();
+    let has_opts = !opts.is_empty();
+
+    let mk_mode = |email: String, password: String, slug: String, slug_idx: usize, field: usize, error: Option<String>| {
+        AppMode::Login { email, password, slug, slug_idx, field, error }
+    };
+
     match code {
         KeyCode::Char('q') => {
             app.should_quit = true;
         }
         KeyCode::Tab => {
-            app.mode = AppMode::Login {
-                email,
-                password,
-                slug,
-                field: (field + 1) % 3,
-                error: None,
-            };
+            app.mode = mk_mode(email, password, slug, slug_idx, (field + 1) % 3, None);
         }
+        // Tenant picker: Up/Down cycle through options
+        KeyCode::Up if field == 2 && has_opts => {
+            let idx = if slug_idx == 0 { opts.len() - 1 } else { slug_idx - 1 };
+            app.mode = mk_mode(email, password, opts[idx].0.clone(), idx, field, None);
+        }
+        KeyCode::Down if field == 2 && has_opts => {
+            let idx = (slug_idx + 1) % opts.len();
+            app.mode = mk_mode(email, password, opts[idx].0.clone(), idx, field, None);
+        }
+        // Text input for email/password (and slug when no options available)
         KeyCode::Backspace => {
             let (mut e, mut p, mut s) = (email, password, slug);
             match field {
                 0 => { e.pop(); }
                 1 => { p.pop(); }
-                _ => { s.pop(); }
+                _ if !has_opts => { s.pop(); }
+                _ => {}
             }
-            app.mode = AppMode::Login { email: e, password: p, slug: s, field, error: None };
+            app.mode = mk_mode(e, p, s, slug_idx, field, None);
         }
         KeyCode::Char(c) => {
             let (mut e, mut p, mut s) = (email, password, slug);
             match field {
                 0 => e.push(c),
                 1 => p.push(c),
-                _ => s.push(c),
+                _ if !has_opts => s.push(c),
+                _ => {}
             }
-            app.mode = AppMode::Login { email: e, password: p, slug: s, field, error: None };
+            app.mode = mk_mode(e, p, s, slug_idx, field, None);
         }
         KeyCode::Enter => {
             if email.is_empty() || password.is_empty() {
@@ -273,22 +294,12 @@ async fn handle_login_key(app: &mut App, code: KeyCode) {
                     }
                 }
                 Err(ApiError::Api { status: 401, .. }) => {
-                    app.mode = AppMode::Login {
-                        email,
-                        password,
-                        slug,
-                        field,
-                        error: Some("Invalid credentials".to_string()),
-                    };
+                    app.mode = mk_mode(email, password, slug, slug_idx, field,
+                        Some("Invalid credentials".to_string()));
                 }
                 Err(e) => {
-                    app.mode = AppMode::Login {
-                        email,
-                        password,
-                        slug,
-                        field,
-                        error: Some(format!("Error: {e}")),
-                    };
+                    app.mode = mk_mode(email, password, slug, slug_idx, field,
+                        Some(format!("Error: {e}")));
                 }
             }
         }
@@ -344,43 +355,47 @@ async fn handle_key(app: &mut App, code: KeyCode, _mods: KeyModifiers) {
             }
             return;
         }
-        Modal::CreateClient { mut name, mut redirect_uri, mut scopes, mut field } => {
+        Modal::CreateClient { mut name, mut redirect_uri, mut scopes, mut client_type, mut field } => {
             match code {
                 KeyCode::Esc => app.modal = Modal::None,
                 KeyCode::Tab => {
-                    field = (field + 1) % 3;
-                    app.modal = Modal::CreateClient { name, redirect_uri, scopes, field };
+                    field = (field + 1) % 4;
+                    app.modal = Modal::CreateClient { name, redirect_uri, scopes, client_type, field };
+                }
+                // On the type field (3), Space/Left/Right cycles the client_type.
+                KeyCode::Char(' ') | KeyCode::Left | KeyCode::Right if field == 3 => {
+                    client_type = (client_type + 1) % 3;
+                    app.modal = Modal::CreateClient { name, redirect_uri, scopes, client_type, field };
                 }
                 KeyCode::Enter => {
-                    if !name.is_empty() && !redirect_uri.is_empty() {
+                    // Machine clients (type 2) don't require redirect_uri.
+                    let requires_uri = client_type != 2;
+                    if !name.is_empty() && (!requires_uri || !redirect_uri.is_empty()) {
                         let n = name.clone();
                         let u = redirect_uri.clone();
                         let sc = scopes.clone();
+                        let ct = client_type;
                         app.modal = Modal::None;
-                        perform_create_client(app, n, u, sc).await;
+                        perform_create_client(app, n, u, sc, ct).await;
                     }
                 }
                 KeyCode::Backspace => {
                     match field {
-                        0 => {
-                            name.pop();
-                        }
-                        1 => {
-                            redirect_uri.pop();
-                        }
-                        _ => {
-                            scopes.pop();
-                        }
+                        0 => { name.pop(); }
+                        1 => { redirect_uri.pop(); }
+                        2 => { scopes.pop(); }
+                        _ => {}  // field 3 is the type selector, not editable
                     }
-                    app.modal = Modal::CreateClient { name, redirect_uri, scopes, field };
+                    app.modal = Modal::CreateClient { name, redirect_uri, scopes, client_type, field };
                 }
                 KeyCode::Char(c) => {
                     match field {
                         0 => name.push(c),
                         1 => redirect_uri.push(c),
-                        _ => scopes.push(c),
+                        2 => scopes.push(c),
+                        _ => {}  // field 3 is the type selector, not editable
                     }
-                    app.modal = Modal::CreateClient { name, redirect_uri, scopes, field };
+                    app.modal = Modal::CreateClient { name, redirect_uri, scopes, client_type, field };
                 }
                 _ => {}
             }
@@ -734,13 +749,7 @@ async fn handle_sidebar_key(app: &mut App, code: KeyCode) {
                 }
                 app.active_tenant_id = Some(tid.clone());
                 app.focus = Focus::Content;
-                match app.tab {
-                    Tab::Clients => load_clients(app, tid).await,
-                    Tab::Users => load_users(app, tid).await,
-                    Tab::Roles => load_roles(app, tid).await,
-                    Tab::Permissions => load_permissions(app, tid).await,
-                    Tab::Sessions => load_sessions(app, tid).await,
-                }
+                load_all(app).await;
             }
         }
         KeyCode::Tab => {
@@ -806,6 +815,7 @@ async fn handle_content_key(app: &mut App, code: KeyCode) {
                         name: String::new(),
                         redirect_uri: String::new(),
                         scopes: String::from("openid email profile"),
+                        client_type: 0,
                         field: 0,
                     };
                 }
@@ -901,6 +911,55 @@ async fn handle_content_key(app: &mut App, code: KeyCode) {
             }
         },
         _ => {}
+    }
+}
+
+async fn load_all(app: &mut App) {
+    let Some(tid) = app.active_tenant_id.clone() else { return };
+    let client = app.client.clone();
+
+    let (clients_r, users_r, roles_r, perms_r, sessions_r) = tokio::join!(
+        client.list_clients(&tid),
+        client.list_users(&tid),
+        client.list_roles(&tid),
+        client.list_permissions(&tid),
+        client.list_sessions(&tid),
+    );
+
+    match clients_r {
+        Ok(list) => {
+            app.client_selected = app.client_selected.min(list.len().saturating_sub(1));
+            app.clients = list;
+        }
+        Err(e) => app.set_status(format!("Clients error: {e}")),
+    }
+    match users_r {
+        Ok(list) => {
+            app.user_selected = app.user_selected.min(list.len().saturating_sub(1));
+            app.users = list;
+        }
+        Err(e) => app.set_status(format!("Users error: {e}")),
+    }
+    match roles_r {
+        Ok(list) => {
+            app.role_selected = app.role_selected.min(list.len().saturating_sub(1));
+            app.roles = list;
+        }
+        Err(e) => app.set_status(format!("Roles error: {e}")),
+    }
+    match perms_r {
+        Ok(list) => {
+            app.permission_selected = app.permission_selected.min(list.len().saturating_sub(1));
+            app.permissions = list;
+        }
+        Err(e) => app.set_status(format!("Permissions error: {e}")),
+    }
+    match sessions_r {
+        Ok(list) => {
+            app.session_selected = app.session_selected.min(list.len().saturating_sub(1));
+            app.sessions = list;
+        }
+        Err(e) => app.set_status(format!("Sessions error: {e}")),
     }
 }
 
@@ -1012,6 +1071,7 @@ async fn perform_create_client(
     name: String,
     redirect_uri: String,
     scopes_str: String,
+    client_type: u8,
 ) {
     let Some(tid) = app.active_tenant_id.clone() else {
         return;
@@ -1020,9 +1080,27 @@ async fn perform_create_client(
         .split_whitespace()
         .map(|s| s.to_owned())
         .collect();
+
+    // Derive is_confidential and grant_types from client_type:
+    //   0 = Confidential/Web  → is_confidential=true,  grant_types=["authorization_code"]
+    //   1 = Public/SPA        → is_confidential=false, grant_types=["authorization_code"]
+    //   2 = Machine/M2M       → is_confidential=true,  grant_types=["client_credentials"]
+    let (is_confidential, grant_types) = match client_type {
+        1 => (false, vec!["authorization_code".to_owned()]),
+        2 => (true, vec!["client_credentials".to_owned()]),
+        _ => (true, vec!["authorization_code".to_owned()]),
+    };
+
+    // Machine clients have no redirect URI.
+    let redirect_uris = if client_type == 2 {
+        vec![]
+    } else {
+        vec![redirect_uri]
+    };
+
     match app
         .client
-        .create_client(&tid, &name, vec![redirect_uri], scopes)
+        .create_client(&tid, &name, redirect_uris, scopes, is_confidential, grant_types)
         .await
     {
         Ok(c) => {
@@ -1034,7 +1112,7 @@ async fn perform_create_client(
             } else {
                 app.set_status(format!("Client '{name}' created"));
             }
-            load_clients(app, tid).await;
+            load_all(app).await;
         }
         Err(e) => app.modal = Modal::Error(format!("{e}")),
     }
@@ -1047,7 +1125,7 @@ async fn perform_create_user(app: &mut App, email: String, password: String) {
     match app.client.create_user(&tid, &email, &password).await {
         Ok(_) => {
             app.set_status(format!("User '{email}' created"));
-            load_users(app, tid).await;
+            load_all(app).await;
         }
         Err(e) => app.modal = Modal::Error(format!("{e}")),
     }
@@ -1093,7 +1171,7 @@ async fn handle_quickstart_key(app: &mut App, code: KeyCode) {
     }
 
     let max_fields: usize = match qs.step {
-        2 => 3,
+        2 => 4, // name, redirect_uri, scopes, type-toggle
         _ => 2,
     };
 
@@ -1104,6 +1182,15 @@ async fn handle_quickstart_key(app: &mut App, code: KeyCode) {
         KeyCode::Tab => {
             qs.field = (qs.field + 1) % max_fields;
             qs.error = None;
+            app.modal = Modal::QuickStart(qs);
+        }
+        // Left/Right on the type toggle field (step 2, field 3) cycle the client type.
+        KeyCode::Left if qs.step == 2 && qs.field == 3 => {
+            qs.client_type = (qs.client_type + 2) % 3;
+            app.modal = Modal::QuickStart(qs);
+        }
+        KeyCode::Right if qs.step == 2 && qs.field == 3 => {
+            qs.client_type = (qs.client_type + 1) % 3;
             app.modal = Modal::QuickStart(qs);
         }
         KeyCode::Backspace => {
@@ -1139,14 +1226,36 @@ async fn handle_quickstart_key(app: &mut App, code: KeyCode) {
                     }
                 }
                 2 => {
-                    if qs.client_name.is_empty() || qs.redirect_uri.is_empty() {
-                        qs.error = Some("Name and Redirect URI are required".to_string());
+                    let needs_uri = qs.client_type != 2;
+                    if qs.client_name.is_empty() || (needs_uri && qs.redirect_uri.is_empty()) {
+                        qs.error = Some(if needs_uri {
+                            "Name and Redirect URI are required".to_string()
+                        } else {
+                            "Name is required".to_string()
+                        });
                         app.modal = Modal::QuickStart(qs);
                         return;
                     }
                     let Some(tid) = qs.created_tenant_id.clone() else { return };
                     let scopes: Vec<String> = qs.scopes.split_whitespace().map(|s| s.to_owned()).collect();
-                    match client.create_client(&tid, &qs.client_name.clone(), vec![qs.redirect_uri.clone()], scopes).await {
+                    let (is_confidential, grant_types) = match qs.client_type {
+                        1 => (false, vec!["authorization_code".to_owned()]),
+                        2 => (true,  vec!["client_credentials".to_owned()]),
+                        _ => (true,  vec!["authorization_code".to_owned()]),
+                    };
+                    let redirect_uris = if qs.client_type == 2 {
+                        vec![]
+                    } else {
+                        vec![qs.redirect_uri.clone()]
+                    };
+                    match client.create_client(
+                        &tid,
+                        &qs.client_name.clone(),
+                        redirect_uris,
+                        scopes,
+                        is_confidential,
+                        grant_types,
+                    ).await {
                         Ok(c) => {
                             qs.created_client_id = Some(c.client_id);
                             qs.created_secret = c.client_secret;
@@ -1214,9 +1323,10 @@ fn push_quickstart_field(qs: &mut QuickStartState, c: char) {
 async fn perform_create_role(app: &mut App, name: String, description: String) {
     let Some(tid) = app.active_tenant_id.clone() else { return };
     match app.client.create_role(&tid, &name, &description).await {
-        Ok(_) => {
-            app.set_status(format!("Role '{name}' created"));
-            load_roles(app, tid).await;
+        Ok(role) => {
+            app.set_status(format!("Role '{}' created — assign permissions below", role.name));
+            load_all(app).await;
+            open_edit_role(app, role.id, role.name, role.description, tid).await;
         }
         Err(e) => app.modal = Modal::Error(format!("{e}")),
     }
@@ -1259,7 +1369,7 @@ async fn perform_edit_client(
     match app.client.update_client(&tid, &id, &name, redirect_uris, scopes).await {
         Ok(_) => {
             app.set_status(format!("Client '{name}' updated"));
-            load_clients(app, tid).await;
+            load_all(app).await;
         }
         Err(e) => app.modal = Modal::Error(format!("{e}")),
     }
@@ -1287,12 +1397,23 @@ async fn open_edit_user(app: &mut App, user_id: String, email: String, is_active
         client.list_roles(&tid),
         client.list_user_roles(&tid, &user_id),
     );
-    let all_roles = roles_result.unwrap_or_default();
-    let assigned_ids: std::collections::HashSet<String> = assigned_result
-        .unwrap_or_default()
-        .iter()
-        .map(|r| r.id.clone())
-        .collect();
+    let all_roles = match roles_result {
+        Ok(r) => {
+            app.roles = r.clone();
+            r
+        }
+        Err(e) => {
+            app.modal = Modal::Error(format!("Failed to load roles: {e}"));
+            return;
+        }
+    };
+    let assigned_ids: std::collections::HashSet<String> = match assigned_result {
+        Ok(r) => r.iter().map(|r| r.id.clone()).collect(),
+        Err(e) => {
+            app.modal = Modal::Error(format!("Failed to load user roles: {e}"));
+            return;
+        }
+    };
 
     let role_entries: Vec<(String, String, bool)> = all_roles
         .iter()
@@ -1340,12 +1461,23 @@ async fn open_edit_role(app: &mut App, role_id: String, name: String, descriptio
         client.list_permissions(&tid),
         client.list_role_permissions(&tid, &role_id),
     );
-    let all_perms = all_perms_result.unwrap_or_default();
-    let assigned_ids: std::collections::HashSet<String> = assigned_result
-        .unwrap_or_default()
-        .iter()
-        .map(|p| p.id.clone())
-        .collect();
+    let all_perms = match all_perms_result {
+        Ok(p) => {
+            app.permissions = p.clone();
+            p
+        }
+        Err(e) => {
+            app.modal = Modal::Error(format!("Failed to load permissions: {e}"));
+            return;
+        }
+    };
+    let assigned_ids: std::collections::HashSet<String> = match assigned_result {
+        Ok(p) => p.iter().map(|p| p.id.clone()).collect(),
+        Err(e) => {
+            app.modal = Modal::Error(format!("Failed to load role permissions: {e}"));
+            return;
+        }
+    };
     let perm_entries: Vec<(String, String, bool)> = all_perms
         .iter()
         .map(|p| (p.id.clone(), p.name.clone(), assigned_ids.contains(&p.id)))
@@ -1384,7 +1516,7 @@ async fn perform_edit_user(
         }
     }
     app.set_status("User updated");
-    load_users(app, tid).await;
+    load_all(app).await;
 }
 
 async fn perform_edit_role(
@@ -1408,26 +1540,26 @@ async fn perform_edit_role(
         }
     }
     app.set_status("Role updated");
-    load_roles(app, tid).await;
+    load_all(app).await;
 }
 
 async fn perform_create_permission(app: &mut App, name: String, description: String) {
-    let Some(tid) = app.active_tenant_id.clone() else { return };
-    match app.client.create_permission(&tid, &name, &description).await {
+    let Some(_tid) = app.active_tenant_id.clone() else { return };
+    match app.client.create_permission(&_tid, &name, &description).await {
         Ok(_) => {
             app.set_status(format!("Permission '{name}' created"));
-            load_permissions(app, tid).await;
+            load_all(app).await;
         }
         Err(e) => app.modal = Modal::Error(format!("{e}")),
     }
 }
 
 async fn perform_edit_permission(app: &mut App, id: String, name: String, description: String) {
-    let Some(tid) = app.active_tenant_id.clone() else { return };
-    match app.client.update_permission(&tid, &id, &name, &description).await {
+    let Some(_tid) = app.active_tenant_id.clone() else { return };
+    match app.client.update_permission(&_tid, &id, &name, &description).await {
         Ok(_) => {
             app.set_status("Permission updated");
-            load_permissions(app, tid).await;
+            load_all(app).await;
         }
         Err(e) => app.modal = Modal::Error(format!("{e}")),
     }
@@ -1438,51 +1570,23 @@ async fn perform_delete(app: &mut App, id: String) {
     let Some(tid) = app.active_tenant_id.clone() else {
         return;
     };
-    match app.tab {
-        Tab::Clients => {
-            match app.client.deactivate_client(&tid, &id).await {
-                Ok(_) => {
-                    app.set_status("Client deactivated");
-                    load_clients(app, tid).await;
-                }
-                Err(e) => app.modal = Modal::Error(format!("{e}")),
-            }
+    let result = match app.tab {
+        Tab::Clients => app.client.deactivate_client(&tid, &id).await
+            .map(|_| "Client deactivated"),
+        Tab::Users => app.client.deactivate_user(&tid, &id).await
+            .map(|_| "User deactivated"),
+        Tab::Roles => app.client.delete_role(&tid, &id).await
+            .map(|_| "Role deleted"),
+        Tab::Permissions => app.client.delete_permission(&tid, &id).await
+            .map(|_| "Permission deleted"),
+        Tab::Sessions => app.client.delete_session(&tid, &id).await
+            .map(|_| "Session revoked"),
+    };
+    match result {
+        Ok(msg) => {
+            app.set_status(msg);
+            load_all(app).await;
         }
-        Tab::Users => {
-            match app.client.deactivate_user(&tid, &id).await {
-                Ok(_) => {
-                    app.set_status("User deactivated");
-                    load_users(app, tid).await;
-                }
-                Err(e) => app.modal = Modal::Error(format!("{e}")),
-            }
-        }
-        Tab::Roles => {
-            match app.client.delete_role(&tid, &id).await {
-                Ok(_) => {
-                    app.set_status("Role deleted");
-                    load_roles(app, tid).await;
-                }
-                Err(e) => app.modal = Modal::Error(format!("{e}")),
-            }
-        }
-        Tab::Permissions => {
-            match app.client.delete_permission(&tid, &id).await {
-                Ok(_) => {
-                    app.set_status("Permission deleted");
-                    load_permissions(app, tid).await;
-                }
-                Err(e) => app.modal = Modal::Error(format!("{e}")),
-            }
-        }
-        Tab::Sessions => {
-            match app.client.delete_session(&tid, &id).await {
-                Ok(_) => {
-                    app.set_status("Session revoked");
-                    load_sessions(app, tid).await;
-                }
-                Err(e) => app.modal = Modal::Error(format!("{e}")),
-            }
-        }
+        Err(e) => app.modal = Modal::Error(format!("{e}")),
     }
 }

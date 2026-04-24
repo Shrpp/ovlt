@@ -70,7 +70,7 @@ pub async fn list_roles(
     let tenant_id = extract_tenant_id(&headers)?;
 
     let txn = db::begin_tenant_txn(&state.db, tenant_id).await?;
-    let roles = role_service::list_all(&txn).await?;
+    let roles = role_service::list_all(&txn, tenant_id).await?;
     txn.commit().await?;
 
     let resp: Vec<RoleResponse> = roles
@@ -167,7 +167,7 @@ pub async fn list_user_roles(
     let tenant_id = extract_tenant_id(&headers)?;
 
     let txn = db::begin_tenant_txn(&state.db, tenant_id).await?;
-    let roles = role_service::list_for_user(&txn, user_id).await?;
+    let roles = role_service::list_for_user(&txn, user_id, tenant_id).await?;
     txn.commit().await?;
 
     let resp: Vec<RoleResponse> = roles

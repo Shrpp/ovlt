@@ -57,6 +57,40 @@ pub fn generate_access_token(
     .map_err(|e| AppError::TokenError(e.to_string()))
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct ClientTokenClaims {
+    jti: String,
+    sub: String,   // client_id string
+    tid: String,
+    iat: i64,
+    exp: i64,
+    scope: String, // space-joined scopes
+}
+
+pub fn generate_client_access_token(
+    client_id: &str,
+    tenant_id: Uuid,
+    scopes: &[String],
+    secret: &str,
+    expiration_minutes: i64,
+) -> Result<String, AppError> {
+    let now = Utc::now().timestamp();
+    let claims = ClientTokenClaims {
+        jti: Uuid::new_v4().to_string(),
+        sub: client_id.to_string(),
+        tid: tenant_id.to_string(),
+        iat: now,
+        exp: now + expiration_minutes * 60,
+        scope: scopes.join(" "),
+    };
+    encode(
+        &Header::default(),
+        &claims,
+        &EncodingKey::from_secret(secret.as_bytes()),
+    )
+    .map_err(|e| AppError::TokenError(e.to_string()))
+}
+
 pub fn validate_access_token(token: &str, secret: &str) -> Result<Claims, AppError> {
     decode::<Claims>(
         token,

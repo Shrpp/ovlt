@@ -29,8 +29,11 @@ pub async fn create(
     .await?)
 }
 
-pub async fn list_all(txn: &DatabaseTransaction) -> Result<Vec<roles::Model>, AppError> {
-    Ok(roles::Entity::find().all(txn).await?)
+pub async fn list_all(txn: &DatabaseTransaction, tenant_id: Uuid) -> Result<Vec<roles::Model>, AppError> {
+    Ok(roles::Entity::find()
+        .filter(roles::Column::TenantId.eq(tenant_id))
+        .all(txn)
+        .await?)
 }
 
 pub async fn find_by_id(
@@ -62,9 +65,11 @@ pub async fn delete(txn: &DatabaseTransaction, id: Uuid) -> Result<(), AppError>
 pub async fn list_for_user(
     txn: &DatabaseTransaction,
     user_id: Uuid,
+    tenant_id: Uuid,
 ) -> Result<Vec<roles::Model>, AppError> {
     let role_ids: Vec<Uuid> = user_roles::Entity::find()
         .filter(user_roles::Column::UserId.eq(user_id))
+        .filter(user_roles::Column::TenantId.eq(tenant_id))
         .all(txn)
         .await?
         .into_iter()
@@ -77,6 +82,7 @@ pub async fn list_for_user(
 
     Ok(roles::Entity::find()
         .filter(roles::Column::Id.is_in(role_ids))
+        .filter(roles::Column::TenantId.eq(tenant_id))
         .all(txn)
         .await?)
 }
@@ -84,8 +90,9 @@ pub async fn list_for_user(
 pub async fn list_names_for_user(
     txn: &DatabaseTransaction,
     user_id: Uuid,
+    tenant_id: Uuid,
 ) -> Result<Vec<String>, AppError> {
-    Ok(list_for_user(txn, user_id)
+    Ok(list_for_user(txn, user_id, tenant_id)
         .await?
         .into_iter()
         .map(|r| r.name)
