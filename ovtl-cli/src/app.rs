@@ -164,7 +164,6 @@ pub enum Modal {
     },
     CreatePermission { name: String, description: String, field: usize },
     EditPermission { id: String, name: String, description: String, field: usize },
-    UserRoles { user_id: String, email: String, all_roles: Vec<(String, String, bool)>, selected: usize },
     ClientRoles { client_id: String, client_name: String, all_roles: Vec<(String, String, bool)>, selected: usize },
 }
 

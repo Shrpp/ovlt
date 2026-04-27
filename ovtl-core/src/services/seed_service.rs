@@ -3,7 +3,7 @@ use uuid::Uuid;
 use crate::{
     db,
     error::AppError,
-    services::{permission_service, role_service, user_service},
+    services::{permission_service, role_service},
 };
 use sea_orm::DatabaseConnection;
 

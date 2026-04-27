@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use serde::Deserialize;
 use thiserror::Error;
 
@@ -394,22 +395,6 @@ impl Client {
             .send()
             .await?;
         self.check(resp).await
-    }
-
-    pub async fn set_user_active(&self, tenant_id: &str, id: &str, is_active: bool) -> ApiResult<()> {
-        let resp = self
-            .inner
-            .put(format!("{}/users/{}", self.base_url, id))
-            .headers(self.tenant_headers(tenant_id))
-            .json(&serde_json::json!({ "is_active": is_active }))
-            .send()
-            .await?;
-        let status = resp.status();
-        if status.is_success() {
-            Ok(())
-        } else {
-            Err(ApiError::Api { status: status.as_u16(), message: "update failed".into() })
-        }
     }
 
     pub async fn deactivate_user(&self, tenant_id: &str, id: &str) -> ApiResult<()> {

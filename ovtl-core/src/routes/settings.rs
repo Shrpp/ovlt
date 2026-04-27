@@ -1,4 +1,4 @@
-use axum::{routing::{get, put}, Router};
+use axum::{routing::get, Router};
 
 use crate::{
     handlers::admin_tenant_settings::{

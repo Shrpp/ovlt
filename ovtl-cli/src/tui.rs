@@ -245,9 +245,6 @@ pub async fn run(mut app: App) -> io::Result<()> {
                         *field,
                     );
                 }
-                Modal::UserRoles { email, all_roles, selected, .. } => {
-                    modal::render_user_roles(frame, email, all_roles, *selected);
-                }
                 Modal::ClientRoles { client_name, all_roles, selected, .. } => {
                     modal::render_user_roles(frame, client_name, all_roles, *selected);
                 }
@@ -598,33 +595,6 @@ async fn handle_key(app: &mut App, code: KeyCode, _mods: KeyModifiers) {
                 KeyCode::Char(c) => {
                     if field == 0 { name.push(c); } else { description.push(c); }
                     app.modal = Modal::CreateRole { name, description, field };
-                }
-                _ => {}
-            }
-            return;
-        }
-        Modal::UserRoles { user_id, email, mut all_roles, mut selected } => {
-            match code {
-                KeyCode::Esc => app.modal = Modal::None,
-                KeyCode::Up => {
-                    if selected > 0 { selected -= 1; }
-                    app.modal = Modal::UserRoles { user_id, email, all_roles, selected };
-                }
-                KeyCode::Down => {
-                    if selected + 1 < all_roles.len() { selected += 1; }
-                    app.modal = Modal::UserRoles { user_id, email, all_roles, selected };
-                }
-                KeyCode::Char(' ') => {
-                    if let Some(entry) = all_roles.get_mut(selected) {
-                        entry.2 = !entry.2;
-                    }
-                    app.modal = Modal::UserRoles { user_id, email, all_roles, selected };
-                }
-                KeyCode::Enter => {
-                    let uid = user_id.clone();
-                    let entries = all_roles.clone();
-                    app.modal = Modal::None;
-                    perform_save_user_roles(app, uid, entries).await;
                 }
                 _ => {}
             }
@@ -1689,22 +1659,6 @@ async fn perform_create_role(app: &mut App, name: String, description: String) {
     }
 }
 
-async fn perform_save_user_roles(
-    app: &mut App,
-    user_id: String,
-    entries: Vec<(String, String, bool)>,
-) {
-    let Some(tid) = app.active_tenant_id.clone() else { return };
-    let client = app.client.clone();
-    for (role_id, _, assigned) in &entries {
-        if *assigned {
-            let _ = client.assign_user_role(&tid, &user_id, role_id).await;
-        } else {
-            let _ = client.revoke_user_role(&tid, &user_id, role_id).await;
-        }
-    }
-    app.set_status("Roles saved");
-}
 
 async fn open_client_roles(app: &mut App, client_id: String, client_name: String, tid: String) {
     let api = app.client.clone();

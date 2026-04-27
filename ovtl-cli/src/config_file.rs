@@ -22,11 +22,3 @@ pub fn load() -> CliConfig {
     toml::from_str(&content).unwrap_or_default()
 }
 
-pub fn save(cfg: &CliConfig) -> std::io::Result<()> {
-    let path = config_path();
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    let content = toml::to_string(cfg).unwrap_or_default();
-    std::fs::write(&path, content)
-}

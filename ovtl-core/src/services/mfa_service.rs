@@ -7,8 +7,10 @@ use uuid::Uuid;
 use crate::{entity::totp_secrets, error::AppError};
 
 pub fn generate_secret() -> String {
-    let random_bytes: [u8; 20] = rand::random();
-    base32::encode(Alphabet::RFC4648 { padding: false }, &random_bytes)
+    use rand::RngCore;
+    let mut bytes = [0u8; 20];
+    rand::thread_rng().fill_bytes(&mut bytes);
+    base32::encode(Alphabet::RFC4648 { padding: false }, &bytes)
 }
 
 pub fn totp_uri(secret: &str, email: &str, issuer: &str) -> String {
