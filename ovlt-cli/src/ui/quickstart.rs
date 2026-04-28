@@ -7,16 +7,24 @@ use ratatui::{
 };
 
 fn render_type_toggle(frame: &mut Frame, area: Rect, client_type: u8, active: bool) {
-    let border_style = if active { Style::default().fg(Color::Cyan) } else { Style::default().fg(Color::DarkGray) };
+    let border_style = if active {
+        Style::default().fg(Color::Cyan)
+    } else {
+        Style::default().fg(Color::DarkGray)
+    };
     let title = if active { "Type  ←/→" } else { "Type" };
     let labels = ["Confidential", "SPA/Mobile", "Machine (M2M)"];
     let mut spans: Vec<Span> = Vec::new();
     for (i, label) in labels.iter().enumerate() {
-        if i > 0 { spans.push(Span::raw("   ")); }
+        if i > 0 {
+            spans.push(Span::raw("   "));
+        }
         if i as u8 == client_type {
             spans.push(Span::styled(
                 format!("● {label}"),
-                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
             ));
         } else {
             spans.push(Span::styled(
@@ -26,8 +34,12 @@ fn render_type_toggle(frame: &mut Frame, area: Rect, client_type: u8, active: bo
         }
     }
     frame.render_widget(
-        Paragraph::new(Line::from(spans))
-            .block(Block::default().borders(Borders::ALL).title(title).border_style(border_style)),
+        Paragraph::new(Line::from(spans)).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(title)
+                .border_style(border_style),
+        ),
         area,
     );
 }
@@ -131,7 +143,9 @@ fn render_form_step(
     let header = Line::from(vec![
         Span::styled(
             step_label,
-            Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
         ),
         Span::raw("  "),
         Span::styled(dots, Style::default().fg(Color::Cyan)),
@@ -139,8 +153,10 @@ fn render_form_step(
     frame.render_widget(Paragraph::new(header), chunks[0]);
 
     // Fields
-    for (i, (label, (value, is_masked))) in
-        labels.iter().zip(values.iter().zip(masked.iter())).enumerate()
+    for (i, (label, (value, is_masked))) in labels
+        .iter()
+        .zip(values.iter().zip(masked.iter()))
+        .enumerate()
     {
         let chunk_idx = 2 + i;
         let active = qs.field == i;
@@ -151,7 +167,11 @@ fn render_form_step(
         };
         let display = if *is_masked {
             let m = "*".repeat(value.len());
-            if active { format!("{m}█") } else { m }
+            if active {
+                format!("{m}█")
+            } else {
+                m
+            }
         } else if active {
             format!("{value}█")
         } else {
@@ -214,7 +234,12 @@ fn render_client_step(frame: &mut Frame, area: Rect, qs: &QuickStartState) {
 
     let dots = progress_dots(2);
     let header = Line::from(vec![
-        Span::styled("Step 2 of 4 — Create OAuth Client", Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "Step 2 of 4 — Create OAuth Client",
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::raw("  "),
         Span::styled(dots, Style::default().fg(Color::Cyan)),
     ]);
@@ -227,11 +252,23 @@ fn render_client_step(frame: &mut Frame, area: Rect, qs: &QuickStartState) {
     ];
     for (label, value, _masked, idx) in &fields {
         let active = qs.field == *idx;
-        let border_style = if active { Style::default().fg(Color::Cyan) } else { Style::default().fg(Color::DarkGray) };
-        let display = if active { format!("{value}█") } else { value.to_string() };
+        let border_style = if active {
+            Style::default().fg(Color::Cyan)
+        } else {
+            Style::default().fg(Color::DarkGray)
+        };
+        let display = if active {
+            format!("{value}█")
+        } else {
+            value.to_string()
+        };
         frame.render_widget(
-            Paragraph::new(display)
-                .block(Block::default().borders(Borders::ALL).title(*label).border_style(border_style)),
+            Paragraph::new(display).block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(*label)
+                    .border_style(border_style),
+            ),
             chunks[2 + idx],
         );
     }
@@ -240,8 +277,11 @@ fn render_client_step(frame: &mut Frame, area: Rect, qs: &QuickStartState) {
 
     if let Some(err) = &qs.error {
         frame.render_widget(
-            Paragraph::new(Span::styled(err.as_str(), Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)))
-                .alignment(Alignment::Center),
+            Paragraph::new(Span::styled(
+                err.as_str(),
+                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+            ))
+            .alignment(Alignment::Center),
             chunks[7],
         );
     }
@@ -256,7 +296,10 @@ fn render_client_step(frame: &mut Frame, area: Rect, qs: &QuickStartState) {
         Span::styled("Esc", Style::default().fg(Color::Cyan)),
         Span::styled(" Close", Style::default().fg(Color::DarkGray)),
     ]);
-    frame.render_widget(Paragraph::new(hints).alignment(Alignment::Center), chunks[8]);
+    frame.render_widget(
+        Paragraph::new(hints).alignment(Alignment::Center),
+        chunks[8],
+    );
 }
 
 fn render_summary(frame: &mut Frame, area: Rect, qs: &QuickStartState, base_url: &str) {
@@ -279,7 +322,9 @@ fn render_summary(frame: &mut Frame, area: Rect, qs: &QuickStartState, base_url:
         Span::styled("✓ Tenant    ", Style::default().fg(Color::Green)),
         Span::styled(
             qs.created_tenant_name.as_deref().unwrap_or("—"),
-            Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
         ),
     ]);
     frame.render_widget(Paragraph::new(tenant_line), chunks[1]);
@@ -288,7 +333,9 @@ fn render_summary(frame: &mut Frame, area: Rect, qs: &QuickStartState, base_url:
         Span::styled("✓ Client    ", Style::default().fg(Color::Green)),
         Span::styled(
             &qs.client_name,
-            Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
         ),
     ]);
     frame.render_widget(Paragraph::new(client_line), chunks[2]);
@@ -307,12 +354,13 @@ fn render_summary(frame: &mut Frame, area: Rect, qs: &QuickStartState, base_url:
     };
     let secret_line = Line::from(vec![
         Span::styled("  secret    ", Style::default().fg(Color::DarkGray)),
+        Span::styled(&secret_display, Style::default().fg(Color::Yellow)),
         Span::styled(
-            &secret_display,
-            Style::default().fg(Color::Yellow),
-        ),
-        Span::styled(
-            if qs.show_secret { "  [ c → hide ]" } else { "  [ c → reveal ]" },
+            if qs.show_secret {
+                "  [ c → hide ]"
+            } else {
+                "  [ c → reveal ]"
+            },
             Style::default().fg(Color::DarkGray),
         ),
     ]);
@@ -333,10 +381,7 @@ fn render_summary(frame: &mut Frame, area: Rect, qs: &QuickStartState, base_url:
         Span::styled("Enter", Style::default().fg(Color::Cyan)),
         Span::styled(" Dashboard", Style::default().fg(Color::DarkGray)),
     ]);
-    frame.render_widget(
-        Paragraph::new(hint).alignment(Alignment::Center),
-        chunks[8],
-    );
+    frame.render_widget(Paragraph::new(hint).alignment(Alignment::Center), chunks[8]);
 }
 
 fn progress_dots(current: u8) -> String {

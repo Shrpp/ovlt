@@ -1,6 +1,12 @@
-use axum::{routing::{get, post}, Router};
+use axum::{
+    routing::{get, post},
+    Router,
+};
 
-use crate::{handlers::tenants::{create_tenant, list_tenant_slugs, list_tenants}, state::AppState};
+use crate::{
+    handlers::tenants::{create_tenant, list_tenant_slugs, list_tenants},
+    state::AppState,
+};
 
 pub fn router() -> Router<AppState> {
     Router::new()

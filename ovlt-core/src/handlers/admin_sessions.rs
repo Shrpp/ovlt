@@ -7,12 +7,7 @@ use axum::{
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::{
-    error::AppError,
-    handlers::admin_auth,
-    services::session_service,
-    state::AppState,
-};
+use crate::{error::AppError, handlers::admin_auth, services::session_service, state::AppState};
 
 fn extract_tenant_id(headers: &HeaderMap) -> Result<Uuid, AppError> {
     headers
@@ -49,10 +44,7 @@ pub async fn list_sessions(
     let response: Vec<SessionResponse> = sessions
         .into_iter()
         .map(|s| {
-            let email = s.data["email"]
-                .as_str()
-                .unwrap_or("")
-                .to_string();
+            let email = s.data["email"].as_str().unwrap_or("").to_string();
             let ip = s.data["ip"].as_str().map(|s| s.to_string());
             SessionResponse {
                 id: s.id,

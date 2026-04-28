@@ -7,10 +7,7 @@ use axum::{
 use uuid::Uuid;
 
 use crate::{
-    error::AppError,
-    middleware::tenant::TenantContext,
-    services::token_service,
-    state::AppState,
+    error::AppError, middleware::tenant::TenantContext, services::token_service, state::AppState,
 };
 
 #[derive(Clone, Debug)]
@@ -39,10 +36,10 @@ pub async fn auth_middleware(
         return Err(AppError::Unauthorized);
     }
 
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::TokenError("invalid sub".into()))?;
-    let token_tenant_id = Uuid::parse_str(&claims.tid)
-        .map_err(|_| AppError::TokenError("invalid tid".into()))?;
+    let user_id =
+        Uuid::parse_str(&claims.sub).map_err(|_| AppError::TokenError("invalid sub".into()))?;
+    let token_tenant_id =
+        Uuid::parse_str(&claims.tid).map_err(|_| AppError::TokenError("invalid tid".into()))?;
 
     if let Some(ctx) = req.extensions().get::<TenantContext>() {
         if token_tenant_id != ctx.tenant_id {

@@ -1,4 +1,9 @@
-use axum::{extract::State, http::{header, HeaderMap, StatusCode}, response::IntoResponse, Extension, Json};
+use axum::{
+    extract::State,
+    http::{header, HeaderMap, StatusCode},
+    response::IntoResponse,
+    Extension, Json,
+};
 use serde::Deserialize;
 
 use crate::{

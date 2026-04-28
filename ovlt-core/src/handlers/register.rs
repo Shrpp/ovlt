@@ -1,4 +1,9 @@
-use axum::{extract::{ConnectInfo, State}, http::StatusCode, response::IntoResponse, Extension, Json};
+use axum::{
+    extract::{ConnectInfo, State},
+    http::StatusCode,
+    response::IntoResponse,
+    Extension, Json,
+};
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use validator::Validate;

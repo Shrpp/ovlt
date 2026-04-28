@@ -62,5 +62,7 @@ pub async fn reset_password(
 
     txn.commit().await?;
 
-    Ok(Json(serde_json::json!({ "message": "password updated successfully" })))
+    Ok(Json(
+        serde_json::json!({ "message": "password updated successfully" }),
+    ))
 }

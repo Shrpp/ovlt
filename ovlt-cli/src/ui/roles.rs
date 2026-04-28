@@ -37,7 +37,9 @@ pub fn render(frame: &mut Frame, app: &App, area: Rect, list_state: &mut ListSta
             let line = Line::from(vec![
                 Span::styled(
                     format!("{:<24}", r.name),
-                    Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                    Style::default()
+                        .fg(Color::Cyan)
+                        .add_modifier(Modifier::BOLD),
                 ),
                 Span::styled(
                     format!("  {}", r.description),

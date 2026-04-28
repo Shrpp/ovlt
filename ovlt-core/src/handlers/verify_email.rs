@@ -49,5 +49,7 @@ pub async fn verify_email(
     active.update(&txn2).await?;
     txn2.commit().await?;
 
-    Ok(Json(serde_json::json!({ "message": "email verified successfully" })))
+    Ok(Json(
+        serde_json::json!({ "message": "email verified successfully" }),
+    ))
 }

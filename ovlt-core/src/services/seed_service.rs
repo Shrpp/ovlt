@@ -9,8 +9,7 @@ use sea_orm::DatabaseConnection;
 
 const SUPER_ADMIN_ROLE: &str = "SuperAdmin";
 const SUPER_ADMIN_PERM: &str = "default:super_admin";
-const SUPER_ADMIN_PERM_DESC: &str =
-    "Grants full administrative access to this tenant";
+const SUPER_ADMIN_PERM_DESC: &str = "Grants full administrative access to this tenant";
 const SUPER_ADMIN_ROLE_DESC: &str =
     "Full administrative access — can manage users, roles, clients, and settings";
 

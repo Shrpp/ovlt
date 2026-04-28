@@ -1,7 +1,7 @@
 use axum::{
     extract::{Form, Query, State},
     http::{HeaderMap, StatusCode},
-    response::{IntoResponse, Response, Redirect},
+    response::{IntoResponse, Redirect, Response},
     Json,
 };
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
@@ -16,7 +16,10 @@ use crate::{
     entity::authorization_codes,
     error::AppError,
     handlers::logout::get_session_cookie,
-    services::{client_service, permission_service, role_service, session_service, tenant_service, token_service, user_service},
+    services::{
+        client_service, permission_service, role_service, session_service, tenant_service,
+        token_service, user_service,
+    },
     state::AppState,
 };
 
@@ -49,10 +52,10 @@ pub async fn authorize(
         if token_service::is_jti_revoked(&state.db, &claims.jti).await? {
             return Err(AppError::Unauthorized);
         }
-        let tid = Uuid::parse_str(&claims.tid)
-            .map_err(|_| AppError::TokenError("invalid tid".into()))?;
-        let uid = Uuid::parse_str(&claims.sub)
-            .map_err(|_| AppError::TokenError("invalid sub".into()))?;
+        let tid =
+            Uuid::parse_str(&claims.tid).map_err(|_| AppError::TokenError("invalid tid".into()))?;
+        let uid =
+            Uuid::parse_str(&claims.sub).map_err(|_| AppError::TokenError("invalid sub".into()))?;
         (tid, uid)
     } else if let Some(session_id) = get_session_cookie(&headers) {
         let session = session_service::find_valid(&state.db, &session_id)
@@ -140,7 +143,7 @@ pub struct TokenRequest {
     pub client_id: String,
     pub client_secret: Option<String>,
     pub code_verifier: Option<String>,
-    pub scope: Option<String>,      // for client_credentials
+    pub scope: Option<String>, // for client_credentials
 }
 
 #[derive(Debug, Serialize)]
@@ -172,16 +175,32 @@ pub async fn token(
     Form(req): Form<TokenRequest>,
 ) -> Result<Response, AppError> {
     match req.grant_type.as_str() {
-        "authorization_code" => token_authorization_code(state, req).await.map(IntoResponse::into_response),
-        "client_credentials" => token_client_credentials(state, req).await.map(IntoResponse::into_response),
+        "authorization_code" => token_authorization_code(state, req)
+            .await
+            .map(IntoResponse::into_response),
+        "client_credentials" => token_client_credentials(state, req)
+            .await
+            .map(IntoResponse::into_response),
         _ => Err(AppError::InvalidInput("unsupported grant_type".into())),
     }
 }
 
-async fn token_authorization_code(state: AppState, req: TokenRequest) -> Result<impl IntoResponse, AppError> {
-    let code = req.code.as_deref().ok_or_else(|| AppError::InvalidInput("code required".into()))?;
-    let redirect_uri = req.redirect_uri.as_deref().ok_or_else(|| AppError::InvalidInput("redirect_uri required".into()))?;
-    let code_verifier = req.code_verifier.as_deref().ok_or_else(|| AppError::InvalidInput("code_verifier required".into()))?;
+async fn token_authorization_code(
+    state: AppState,
+    req: TokenRequest,
+) -> Result<impl IntoResponse, AppError> {
+    let code = req
+        .code
+        .as_deref()
+        .ok_or_else(|| AppError::InvalidInput("code required".into()))?;
+    let redirect_uri = req
+        .redirect_uri
+        .as_deref()
+        .ok_or_else(|| AppError::InvalidInput("redirect_uri required".into()))?;
+    let code_verifier = req
+        .code_verifier
+        .as_deref()
+        .ok_or_else(|| AppError::InvalidInput("code_verifier required".into()))?;
 
     // 1. Fetch the authorization code (no RLS — codes table has no policy).
     let auth_code = authorization_codes::Entity::find_by_id(code)
@@ -224,10 +243,7 @@ async fn token_authorization_code(state: AppState, req: TokenRequest) -> Result<
     }
 
     if client.is_confidential {
-        let secret = req
-            .client_secret
-            .as_deref()
-            .ok_or(AppError::Unauthorized)?;
+        let secret = req.client_secret.as_deref().ok_or(AppError::Unauthorized)?;
         if !client_service::verify_secret(secret, &client.client_secret) {
             txn.commit().await?;
             return Err(AppError::Unauthorized);
@@ -342,7 +358,10 @@ async fn token_authorization_code(state: AppState, req: TokenRequest) -> Result<
     }))
 }
 
-async fn token_client_credentials(state: AppState, req: TokenRequest) -> Result<impl IntoResponse, AppError> {
+async fn token_client_credentials(
+    state: AppState,
+    req: TokenRequest,
+) -> Result<impl IntoResponse, AppError> {
     // 1. Find client globally (cross-tenant, bypasses RLS via superuser connection).
     let client = client_service::find_by_client_id_global(&state.db, &req.client_id)
         .await?
@@ -354,7 +373,9 @@ async fn token_client_credentials(state: AppState, req: TokenRequest) -> Result<
     }
     let grant_types = client_service::scopes_to_vec(&client.grant_types);
     if !grant_types.iter().any(|g| g == "client_credentials") {
-        return Err(AppError::InvalidInput("client does not support client_credentials".into()));
+        return Err(AppError::InvalidInput(
+            "client does not support client_credentials".into(),
+        ));
     }
 
     // 3. Verify secret.
@@ -365,7 +386,8 @@ async fn token_client_credentials(state: AppState, req: TokenRequest) -> Result<
 
     // 4. Resolve scopes (intersection of requested + registered).
     let registered_scopes = client_service::scopes_to_vec(&client.scopes);
-    let requested_scopes: Vec<String> = req.scope
+    let requested_scopes: Vec<String> = req
+        .scope
         .as_deref()
         .map(|s| s.split_whitespace().map(|s| s.to_owned()).collect())
         .unwrap_or_else(|| registered_scopes.clone());

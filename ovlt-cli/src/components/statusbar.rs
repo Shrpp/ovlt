@@ -12,7 +12,9 @@ pub fn render(frame: &mut Frame, area: Rect, hints: &[(&str, &str)], status: Opt
     for (key, desc) in hints {
         spans.push(Span::styled(
             format!("[{key}]"),
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
         ));
         spans.push(Span::raw(format!(" {desc}  ")));
     }
@@ -24,7 +26,6 @@ pub fn render(frame: &mut Frame, area: Rect, hints: &[(&str, &str)], status: Opt
         ));
     }
 
-    let bar = Paragraph::new(Line::from(spans))
-        .style(Style::default().bg(Color::DarkGray));
+    let bar = Paragraph::new(Line::from(spans)).style(Style::default().bg(Color::DarkGray));
     frame.render_widget(bar, area);
 }

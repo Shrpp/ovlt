@@ -1,6 +1,7 @@
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseTransaction, EntityTrait, IntoActiveModel, QueryFilter, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseTransaction, EntityTrait, IntoActiveModel, QueryFilter,
+    Set,
 };
 use uuid::Uuid;
 
@@ -29,7 +30,10 @@ pub async fn create(
     .await?)
 }
 
-pub async fn list_all(txn: &DatabaseTransaction, tenant_id: Uuid) -> Result<Vec<roles::Model>, AppError> {
+pub async fn list_all(
+    txn: &DatabaseTransaction,
+    tenant_id: Uuid,
+) -> Result<Vec<roles::Model>, AppError> {
     Ok(roles::Entity::find()
         .filter(roles::Column::TenantId.eq(tenant_id))
         .all(txn)

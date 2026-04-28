@@ -9,7 +9,9 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use validator::Validate;
 
-use crate::{entity::tenants, error::AppError, handlers::admin_auth, services::seed_service, state::AppState};
+use crate::{
+    entity::tenants, error::AppError, handlers::admin_auth, services::seed_service, state::AppState,
+};
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateTenantRequest {
@@ -48,7 +50,12 @@ pub async fn create_tenant(
     headers: HeaderMap,
     Json(payload): Json<CreateTenantRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    admin_auth::require_admin(&headers, &state.config.admin_key, &state.config.jwt_secret, state.master_tenant_id)?;
+    admin_auth::require_admin(
+        &headers,
+        &state.config.admin_key,
+        &state.config.jwt_secret,
+        state.master_tenant_id,
+    )?;
 
     payload
         .validate()
@@ -112,7 +119,10 @@ pub async fn list_tenant_slugs(
     let rows = tenants::Entity::find().all(&state.db).await?;
     let resp: Vec<TenantSlugEntry> = rows
         .into_iter()
-        .map(|t| TenantSlugEntry { slug: t.slug, name: t.name })
+        .map(|t| TenantSlugEntry {
+            slug: t.slug,
+            name: t.name,
+        })
         .collect();
     Ok(Json(resp))
 }
@@ -121,7 +131,12 @@ pub async fn list_tenants(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<impl IntoResponse, AppError> {
-    let scope = admin_auth::require_admin(&headers, &state.config.admin_key, &state.config.jwt_secret, state.master_tenant_id)?;
+    let scope = admin_auth::require_admin(
+        &headers,
+        &state.config.admin_key,
+        &state.config.jwt_secret,
+        state.master_tenant_id,
+    )?;
 
     let tenants = if let Some(tenant_id) = scope {
         // SuperAdmin: return only their own tenant

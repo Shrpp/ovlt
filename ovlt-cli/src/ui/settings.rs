@@ -13,7 +13,11 @@ const SECTIONS: &[&str] = &["Password Policy", "Lockout", "Tokens", "Registratio
 pub fn render(frame: &mut Frame, app: &App, area: Rect) {
     let s = &app.settings;
 
-    let border_color = if s.entered { Color::Cyan } else { Color::DarkGray };
+    let border_color = if s.entered {
+        Color::Cyan
+    } else {
+        Color::DarkGray
+    };
     let outer = Block::default()
         .title(" Settings ")
         .borders(Borders::ALL)
@@ -29,7 +33,11 @@ pub fn render(frame: &mut Frame, app: &App, area: Rect) {
 
     let layout = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Length(1), Constraint::Length(1), Constraint::Min(0)])
+        .constraints([
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Min(0),
+        ])
         .split(inner);
 
     render_section_tabs(frame, s, layout[0]);
@@ -58,10 +66,15 @@ fn render_section_tabs(frame: &mut Frame, s: &SettingsState, area: Rect) {
     for (i, name) in SECTIONS.iter().enumerate() {
         let idx = i as u8;
         let style = if idx == s.section && s.entered {
-            Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::Black)
+                .bg(Color::Cyan)
+                .add_modifier(Modifier::BOLD)
         } else if idx == s.section {
             // Hovered but not entered
-            Style::default().fg(Color::White).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(Color::DarkGray)
         };
@@ -83,13 +96,25 @@ fn field_block(title: &str, active: bool) -> Block<'static> {
 }
 
 fn text_field<'a>(label: &'static str, val: &str, active: bool) -> Paragraph<'a> {
-    let display = if active { format!("{val}█") } else { val.to_string() };
+    let display = if active {
+        format!("{val}█")
+    } else {
+        val.to_string()
+    };
     Paragraph::new(display).block(field_block(label, active))
 }
 
 fn toggle_line(label: &str, val: bool, focused: bool) -> Paragraph<'static> {
-    let (bullet, color) = if val { ("●", Color::Cyan) } else { ("○", Color::DarkGray) };
-    let bg = if focused { Color::DarkGray } else { Color::Reset };
+    let (bullet, color) = if val {
+        ("●", Color::Cyan)
+    } else {
+        ("○", Color::DarkGray)
+    };
+    let bg = if focused {
+        Color::DarkGray
+    } else {
+        Color::Reset
+    };
     Paragraph::new(Line::from(vec![
         Span::styled(format!("{bullet} "), Style::default().fg(color)),
         Span::styled(label.to_string(), Style::default().fg(Color::White).bg(bg)),
@@ -127,10 +152,30 @@ fn render_policy(frame: &mut Frame, s: &SettingsState, area: Rect) {
         ])
         .split(area);
 
-    frame.render_widget(text_field("Min Length", &s.policy_min_length, s.field == 0), chunks[0]);
-    frame.render_widget(toggle_line("Require Uppercase", s.policy_require_uppercase, s.field == 1), chunks[2]);
-    frame.render_widget(toggle_line("Require Digit", s.policy_require_digit, s.field == 2), chunks[3]);
-    frame.render_widget(toggle_line("Require Special (!@#...)", s.policy_require_special, s.field == 3), chunks[4]);
+    frame.render_widget(
+        text_field("Min Length", &s.policy_min_length, s.field == 0),
+        chunks[0],
+    );
+    frame.render_widget(
+        toggle_line(
+            "Require Uppercase",
+            s.policy_require_uppercase,
+            s.field == 1,
+        ),
+        chunks[2],
+    );
+    frame.render_widget(
+        toggle_line("Require Digit", s.policy_require_digit, s.field == 2),
+        chunks[3],
+    );
+    frame.render_widget(
+        toggle_line(
+            "Require Special (!@#...)",
+            s.policy_require_special,
+            s.field == 3,
+        ),
+        chunks[4],
+    );
     frame.render_widget(hints(), chunks[6]);
 }
 
@@ -146,9 +191,22 @@ fn render_lockout(frame: &mut Frame, s: &SettingsState, area: Rect) {
         ])
         .split(area);
 
-    frame.render_widget(text_field("Max Attempts", &s.lockout_max_attempts, s.field == 0), chunks[0]);
-    frame.render_widget(text_field("Window (minutes)", &s.lockout_window_minutes, s.field == 1), chunks[1]);
-    frame.render_widget(text_field("Lockout Duration (minutes)", &s.lockout_duration_minutes, s.field == 2), chunks[2]);
+    frame.render_widget(
+        text_field("Max Attempts", &s.lockout_max_attempts, s.field == 0),
+        chunks[0],
+    );
+    frame.render_widget(
+        text_field("Window (minutes)", &s.lockout_window_minutes, s.field == 1),
+        chunks[1],
+    );
+    frame.render_widget(
+        text_field(
+            "Lockout Duration (minutes)",
+            &s.lockout_duration_minutes,
+            s.field == 2,
+        ),
+        chunks[2],
+    );
     frame.render_widget(hints(), chunks[4]);
 }
 
@@ -163,8 +221,22 @@ fn render_tokens(frame: &mut Frame, s: &SettingsState, area: Rect) {
         ])
         .split(area);
 
-    frame.render_widget(text_field("Access Token TTL (minutes)", &s.access_token_ttl_minutes, s.field == 0), chunks[0]);
-    frame.render_widget(text_field("Refresh Token TTL (days)", &s.refresh_token_ttl_days, s.field == 1), chunks[1]);
+    frame.render_widget(
+        text_field(
+            "Access Token TTL (minutes)",
+            &s.access_token_ttl_minutes,
+            s.field == 0,
+        ),
+        chunks[0],
+    );
+    frame.render_widget(
+        text_field(
+            "Refresh Token TTL (days)",
+            &s.refresh_token_ttl_days,
+            s.field == 1,
+        ),
+        chunks[1],
+    );
     frame.render_widget(hints(), chunks[3]);
 }
 
@@ -179,7 +251,21 @@ fn render_registration(frame: &mut Frame, s: &SettingsState, area: Rect) {
         ])
         .split(area);
 
-    frame.render_widget(toggle_line("Allow Public Registration", s.allow_public_registration, s.field == 0), chunks[0]);
-    frame.render_widget(toggle_line("Require Email Verified to Login", s.require_email_verified, s.field == 1), chunks[1]);
+    frame.render_widget(
+        toggle_line(
+            "Allow Public Registration",
+            s.allow_public_registration,
+            s.field == 0,
+        ),
+        chunks[0],
+    );
+    frame.render_widget(
+        toggle_line(
+            "Require Email Verified to Login",
+            s.require_email_verified,
+            s.field == 1,
+        ),
+        chunks[1],
+    );
     frame.render_widget(hints(), chunks[3]);
 }

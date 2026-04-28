@@ -13,12 +13,20 @@ pub struct Policy {
 
 impl Default for Policy {
     fn default() -> Self {
-        Self { min_length: 8, require_uppercase: false, require_digit: false, require_special: false }
+        Self {
+            min_length: 8,
+            require_uppercase: false,
+            require_digit: false,
+            require_special: false,
+        }
     }
 }
 
 pub async fn get(db: &DatabaseConnection, tenant_id: Uuid) -> Result<Policy, AppError> {
-    match password_policies::Entity::find_by_id(tenant_id).one(db).await? {
+    match password_policies::Entity::find_by_id(tenant_id)
+        .one(db)
+        .await?
+    {
         Some(p) => Ok(Policy {
             min_length: p.min_length as usize,
             require_uppercase: p.require_uppercase,
@@ -38,7 +46,9 @@ pub async fn upsert(
     require_special: bool,
     history_size: i32,
 ) -> Result<(), AppError> {
-    let existing = password_policies::Entity::find_by_id(tenant_id).one(db).await?;
+    let existing = password_policies::Entity::find_by_id(tenant_id)
+        .one(db)
+        .await?;
     let now = Utc::now().fixed_offset();
     if let Some(rec) = existing {
         let mut active: password_policies::ActiveModel = rec.into();

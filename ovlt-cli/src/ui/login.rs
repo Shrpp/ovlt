@@ -73,7 +73,7 @@ pub fn render(frame: &mut Frame, app: &App) {
     }
     constraints.push(Constraint::Length(1)); // spacer
     constraints.push(Constraint::Length(1)); // error
-    constraints.push(Constraint::Min(1));    // hints
+    constraints.push(Constraint::Min(1)); // hints
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -95,7 +95,11 @@ pub fn render(frame: &mut Frame, app: &App) {
 
     // Email
     let email_active = *field == 0;
-    let email_val = if email_active { format!("{email}█") } else { email.clone() };
+    let email_val = if email_active {
+        format!("{email}█")
+    } else {
+        email.clone()
+    };
     frame.render_widget(
         Paragraph::new(email_val).block(
             Block::default()
@@ -109,7 +113,11 @@ pub fn render(frame: &mut Frame, app: &App) {
     // Password
     let pass_active = *field == 1;
     let masked = "•".repeat(password.len());
-    let pass_val = if pass_active { format!("{masked}█") } else { masked };
+    let pass_val = if pass_active {
+        format!("{masked}█")
+    } else {
+        masked
+    };
     frame.render_widget(
         Paragraph::new(pass_val).block(
             Block::default()
@@ -170,7 +178,9 @@ pub fn render(frame: &mut Frame, app: &App) {
                 let bullet = if selected { "●" } else { "○" };
                 let (name_style, slug_style) = if selected {
                     (
-                        Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                        Style::default()
+                            .fg(Color::Cyan)
+                            .add_modifier(Modifier::BOLD),
                         Style::default().fg(Color::DarkGray),
                     )
                 } else {
@@ -180,7 +190,14 @@ pub fn render(frame: &mut Frame, app: &App) {
                     )
                 };
                 ListItem::new(Line::from(vec![
-                    Span::styled(format!(" {bullet} "), Style::default().fg(if selected { Color::Cyan } else { Color::DarkGray })),
+                    Span::styled(
+                        format!(" {bullet} "),
+                        Style::default().fg(if selected {
+                            Color::Cyan
+                        } else {
+                            Color::DarkGray
+                        }),
+                    ),
                     Span::styled(n.as_str(), name_style),
                     Span::styled(format!("  {s}"), slug_style),
                 ]))

@@ -48,9 +48,7 @@ pub async fn email_lookup_exists(
     Ok(find_by_email_lookup(txn, lookup).await?.is_some())
 }
 
-pub async fn list_all(
-    txn: &DatabaseTransaction,
-) -> Result<Vec<users::Model>, AppError> {
+pub async fn list_all(txn: &DatabaseTransaction) -> Result<Vec<users::Model>, AppError> {
     Ok(users::Entity::find().all(txn).await?)
 }
 
@@ -58,7 +56,11 @@ pub async fn deactivate(txn: &DatabaseTransaction, id: Uuid) -> Result<(), AppEr
     set_active(txn, id, false).await
 }
 
-pub async fn set_active(txn: &DatabaseTransaction, id: Uuid, is_active: bool) -> Result<(), AppError> {
+pub async fn set_active(
+    txn: &DatabaseTransaction,
+    id: Uuid,
+    is_active: bool,
+) -> Result<(), AppError> {
     let user = users::Entity::find_by_id(id)
         .one(txn)
         .await?

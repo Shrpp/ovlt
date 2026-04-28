@@ -9,7 +9,10 @@ use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use uuid::Uuid;
 
-use crate::{entity::{refresh_tokens, revoked_jtis}, error::AppError};
+use crate::{
+    entity::{refresh_tokens, revoked_jtis},
+    error::AppError,
+};
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct RealmAccess {
@@ -66,7 +69,7 @@ pub fn generate_access_token(
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct ClientTokenClaims {
     jti: String,
-    sub: String,   // client_id string
+    sub: String, // client_id string
     tid: String,
     iat: i64,
     exp: i64,

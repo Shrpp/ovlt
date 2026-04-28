@@ -1,7 +1,5 @@
 use chrono::Utc;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseTransaction, EntityTrait, QueryFilter, Set,
-};
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseTransaction, EntityTrait, QueryFilter, Set};
 use uuid::Uuid;
 
 use crate::{
@@ -29,7 +27,10 @@ pub async fn create(
     .await?)
 }
 
-pub async fn list_all(txn: &DatabaseTransaction, tenant_id: Uuid) -> Result<Vec<permissions::Model>, AppError> {
+pub async fn list_all(
+    txn: &DatabaseTransaction,
+    tenant_id: Uuid,
+) -> Result<Vec<permissions::Model>, AppError> {
     Ok(permissions::Entity::find()
         .filter(permissions::Column::TenantId.eq(tenant_id))
         .all(txn)
@@ -49,9 +50,7 @@ pub async fn update(
     name: String,
     description: String,
 ) -> Result<(), AppError> {
-    let perm = find_by_id(txn, id)
-        .await?
-        .ok_or(AppError::NotFound)?;
+    let perm = find_by_id(txn, id).await?.ok_or(AppError::NotFound)?;
     let mut active: permissions::ActiveModel = perm.into();
     active.name = Set(name);
     active.description = Set(description);

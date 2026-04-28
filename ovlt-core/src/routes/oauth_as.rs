@@ -3,7 +3,10 @@ use axum::{
     Router,
 };
 
-use crate::{handlers::{oauth_as, oauth_revoke}, state::AppState};
+use crate::{
+    handlers::{oauth_as, oauth_revoke},
+    state::AppState,
+};
 
 pub fn router() -> Router<AppState> {
     Router::new()

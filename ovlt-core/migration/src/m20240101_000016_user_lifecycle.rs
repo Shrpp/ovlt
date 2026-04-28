@@ -60,12 +60,12 @@ impl MigrationTrait for Migration {
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         let conn = manager.get_connection();
-        conn.execute_unprepared("DROP TABLE IF EXISTS password_policies").await?;
-        conn.execute_unprepared("DROP TABLE IF EXISTS one_time_tokens").await?;
-        conn.execute_unprepared(
-            "ALTER TABLE users DROP COLUMN IF EXISTS email_verified",
-        )
-        .await?;
+        conn.execute_unprepared("DROP TABLE IF EXISTS password_policies")
+            .await?;
+        conn.execute_unprepared("DROP TABLE IF EXISTS one_time_tokens")
+            .await?;
+        conn.execute_unprepared("ALTER TABLE users DROP COLUMN IF EXISTS email_verified")
+            .await?;
         Ok(())
     }
 }

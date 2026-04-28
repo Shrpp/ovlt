@@ -34,8 +34,8 @@ impl JwkService {
             "RSA_PRIVATE_KEY not set — generating ephemeral key. \
              JWKS will change on restart. Set RSA_PRIVATE_KEY for production."
         );
-        let private_key = RsaPrivateKey::new(&mut OsRng, 2048)
-            .expect("failed to generate RSA-2048 key");
+        let private_key =
+            RsaPrivateKey::new(&mut OsRng, 2048).expect("failed to generate RSA-2048 key");
         Self::build(private_key).expect("failed to build JwkService from generated key")
     }
 

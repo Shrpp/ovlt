@@ -9,11 +9,7 @@ use uuid::Uuid;
 use validator::Validate;
 
 use crate::{
-    db,
-    error::AppError,
-    handlers::admin_auth,
-    services::permission_service,
-    state::AppState,
+    db, error::AppError, handlers::admin_auth, services::permission_service, state::AppState,
 };
 
 fn extract_tenant_id(headers: &HeaderMap) -> Result<Uuid, AppError> {
@@ -30,7 +26,8 @@ fn require_admin(state: &AppState, headers: &HeaderMap) -> Result<(), AppError> 
         &state.config.admin_key,
         &state.config.jwt_secret,
         state.master_tenant_id,
-    ).map(|_| ())
+    )
+    .map(|_| ())
 }
 
 #[derive(Debug, Serialize)]

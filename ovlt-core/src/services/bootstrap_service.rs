@@ -1,7 +1,13 @@
 use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, PaginatorTrait, Set};
 use uuid::Uuid;
 
-use crate::{config::Config, db, entity::tenants, error::AppError, services::{seed_service, user_service}};
+use crate::{
+    config::Config,
+    db,
+    entity::tenants,
+    error::AppError,
+    services::{seed_service, user_service},
+};
 
 pub async fn run(db: &DatabaseConnection, config: &Config) -> Result<(), AppError> {
     let (Some(email), Some(password)) = (
@@ -16,10 +22,7 @@ pub async fn run(db: &DatabaseConnection, config: &Config) -> Result<(), AppErro
         return Ok(());
     }
 
-    let slug = config
-        .bootstrap_tenant_slug
-        .as_deref()
-        .unwrap_or("master");
+    let slug = config.bootstrap_tenant_slug.as_deref().unwrap_or("master");
 
     let tenant_key_plain = format!(
         "{}{}",

@@ -55,5 +55,7 @@ pub async fn forgot_password(
         }
     }
 
-    Ok(Json(serde_json::json!({ "message": "if that email exists, a reset token has been generated" })))
+    Ok(Json(
+        serde_json::json!({ "message": "if that email exists, a reset token has been generated" }),
+    ))
 }

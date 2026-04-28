@@ -41,10 +41,7 @@ pub fn render(frame: &mut Frame, app: &App, area: Rect, list_state: &mut ListSta
                     format!("{:<32}", s.email),
                     Style::default().fg(Color::White),
                 ),
-                Span::styled(
-                    format!(" {:<16}", ip),
-                    Style::default().fg(Color::DarkGray),
-                ),
+                Span::styled(format!(" {:<16}", ip), Style::default().fg(Color::DarkGray)),
                 Span::styled(
                     format!(" last: {last_seen}"),
                     Style::default().fg(Color::DarkGray),

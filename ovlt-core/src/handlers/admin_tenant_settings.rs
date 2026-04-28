@@ -61,7 +61,9 @@ pub async fn put_policy(
     Json(req): Json<UpsertPolicyRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     if req.min_length < 1 || req.min_length > 128 {
-        return Err(AppError::InvalidInput("min_length must be between 1 and 128".into()));
+        return Err(AppError::InvalidInput(
+            "min_length must be between 1 and 128".into(),
+        ));
     }
     password_policy_service::upsert(
         &state.db,
@@ -73,7 +75,9 @@ pub async fn put_policy(
         req.history_size,
     )
     .await?;
-    Ok(Json(serde_json::json!({ "message": "password policy saved" })))
+    Ok(Json(
+        serde_json::json!({ "message": "password policy saved" }),
+    ))
 }
 
 // ── Lockout policy ────────────────────────────────────────────────────────────
@@ -110,7 +114,9 @@ pub async fn put_lockout(
     Json(req): Json<UpsertLockoutRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     if req.max_attempts < 1 || req.window_minutes < 1 || req.duration_minutes < 1 {
-        return Err(AppError::InvalidInput("all lockout values must be >= 1".into()));
+        return Err(AppError::InvalidInput(
+            "all lockout values must be >= 1".into(),
+        ));
     }
     let s = tenant_settings_service::get(&state.db, ctx.tenant_id).await?;
     tenant_settings_service::upsert(
@@ -125,7 +131,9 @@ pub async fn put_lockout(
         s.require_email_verified,
     )
     .await?;
-    Ok(Json(serde_json::json!({ "message": "lockout policy saved" })))
+    Ok(Json(
+        serde_json::json!({ "message": "lockout policy saved" }),
+    ))
 }
 
 // ── Token TTL ─────────────────────────────────────────────────────────────────
@@ -220,5 +228,7 @@ pub async fn put_registration(
         req.require_email_verified,
     )
     .await?;
-    Ok(Json(serde_json::json!({ "message": "registration policy saved" })))
+    Ok(Json(
+        serde_json::json!({ "message": "registration policy saved" }),
+    ))
 }

@@ -8,13 +8,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use validator::Validate;
 
-use crate::{
-    db,
-    error::AppError,
-    handlers::admin_auth,
-    services::role_service,
-    state::AppState,
-};
+use crate::{db, error::AppError, handlers::admin_auth, services::role_service, state::AppState};
 
 fn extract_tenant_id(headers: &HeaderMap) -> Result<Uuid, AppError> {
     headers
@@ -30,7 +24,8 @@ fn require_admin(state: &AppState, headers: &HeaderMap) -> Result<(), AppError> 
         &state.config.admin_key,
         &state.config.jwt_secret,
         state.master_tenant_id,
-    ).map(|_| ())
+    )
+    .map(|_| ())
 }
 
 #[derive(Debug, Serialize)]
@@ -135,7 +130,13 @@ pub async fn update_role(
         .map_err(|e| AppError::InvalidInput(e.to_string()))?;
 
     let txn = db::begin_tenant_txn(&state.db, tenant_id).await?;
-    role_service::update(&txn, id, payload.name, payload.description.unwrap_or_default()).await?;
+    role_service::update(
+        &txn,
+        id,
+        payload.name,
+        payload.description.unwrap_or_default(),
+    )
+    .await?;
     txn.commit().await?;
 
     Ok(StatusCode::NO_CONTENT)

@@ -28,9 +28,13 @@ impl StatefulTable {
         headers: &[&str],
         rows: Vec<Vec<String>>,
     ) {
-        let header_cells = headers
-            .iter()
-            .map(|h| Cell::from(*h).style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
+        let header_cells = headers.iter().map(|h| {
+            Cell::from(*h).style(
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            )
+        });
         let header = Row::new(header_cells).height(1);
 
         let rows: Vec<Row> = rows

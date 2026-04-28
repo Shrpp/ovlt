@@ -30,7 +30,10 @@ impl Default for TenantSettings {
 }
 
 pub async fn get(db: &DatabaseConnection, tenant_id: Uuid) -> Result<TenantSettings, AppError> {
-    match tenant_settings::Entity::find_by_id(tenant_id).one(db).await? {
+    match tenant_settings::Entity::find_by_id(tenant_id)
+        .one(db)
+        .await?
+    {
         Some(s) => Ok(TenantSettings {
             lockout_max_attempts: s.lockout_max_attempts as usize,
             lockout_window_minutes: s.lockout_window_minutes as i64,
@@ -56,7 +59,9 @@ pub async fn upsert(
     require_email_verified: bool,
 ) -> Result<(), AppError> {
     let now = Utc::now().fixed_offset();
-    let existing = tenant_settings::Entity::find_by_id(tenant_id).one(db).await?;
+    let existing = tenant_settings::Entity::find_by_id(tenant_id)
+        .one(db)
+        .await?;
     if let Some(rec) = existing {
         let mut active: tenant_settings::ActiveModel = rec.into();
         active.lockout_max_attempts = Set(lockout_max_attempts);

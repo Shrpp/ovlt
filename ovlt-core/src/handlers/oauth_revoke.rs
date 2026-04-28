@@ -36,8 +36,7 @@ async fn do_revoke(
         .and_then(|v| v.strip_prefix("Bearer "))
         .ok_or(AppError::Unauthorized)?;
 
-    let caller_claims =
-        token_service::validate_access_token(bearer, &state.config.jwt_secret)?;
+    let caller_claims = token_service::validate_access_token(bearer, &state.config.jwt_secret)?;
 
     let hint = req.token_type_hint.as_deref().unwrap_or("");
 
@@ -66,10 +65,9 @@ async fn try_revoke_access(
     if claims.sub != caller_sub {
         return Err(AppError::Unauthorized);
     }
-    let expires_at =
-        chrono::DateTime::from_timestamp(claims.exp, 0)
-            .ok_or_else(|| AppError::TokenError("invalid exp".into()))?
-            .fixed_offset();
+    let expires_at = chrono::DateTime::from_timestamp(claims.exp, 0)
+        .ok_or_else(|| AppError::TokenError("invalid exp".into()))?
+        .fixed_offset();
     token_service::revoke_jti(&state.db, &claims.jti, expires_at).await
 }
 
