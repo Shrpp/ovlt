@@ -1,0 +1,79 @@
+---
+title: Introduction
+description: Auth infrastructure that fits in 20MB.
+---
+
+**OAuth2 + OIDC · Multi-tenant · Zero-knowledge encrypted · Self-hosted on your own terms.**
+
+<Warning>
+  **Alpha build** — not production ready. APIs and configuration may change without notice. Do not use in production until a stable release is announced.
+</Warning>
+
+Keycloak needs a JVM and 512MB RAM. Authentik needs Redis and 735MB.
+OVLT runs in under 20MB — on the same $6 VPS your app already lives on.
+
+Built with **Rust + Axum + PostgreSQL RLS**. Powered by [hefesto](https://crates.io/crates/hefesto).
+
+## Quick Start
+
+```bash
+docker run -p 3000:3000 \
+  -e OVLT_ADMIN_KEY=your-admin-key \
+  -e OVLT_BOOTSTRAP_ADMIN_EMAIL=admin@example.com \
+  -e OVLT_BOOTSTRAP_ADMIN_PASSWORD=Admin1234! \
+  ghcr.io/shrpp/ovlt-core:latest
+```
+
+`JWT_SECRET`, `MASTER_ENCRYPTION_KEY`, and `TENANT_WRAP_KEY` are auto-generated on first run and printed to logs. Save them.
+
+## Features
+
+<CardGroup cols={2}>
+  <Card title="OIDC Authorization Server" icon="lock">
+    Authorization Code + PKCE, client_credentials (M2M), RS256 id_tokens, JWKS endpoint
+  </Card>
+  <Card title="Multi-tenant" icon="building">
+    PostgreSQL RLS enforcement — tenant isolation at the database level, not the application level
+  </Card>
+  <Card title="Zero-knowledge encryption" icon="shield">
+    AES-256-GCM double-envelope at rest via hefesto — the server never sees plaintext credentials
+  </Card>
+  <Card title="MFA" icon="mobile">
+    TOTP support for authenticator apps (Authy, Google Authenticator, etc.)
+  </Card>
+  <Card title="Social login" icon="globe">
+    Google and GitHub OAuth2 out of the box
+  </Card>
+  <Card title="Admin TUI" icon="terminal">
+    Terminal UI to manage tenants, users, clients, roles, and permissions
+  </Card>
+</CardGroup>
+
+## Comparison
+
+| | OVLT | Keycloak | Authentik | Zitadel |
+|:---|:---:|:---:|:---:|:---:|
+| RAM at idle | **~20MB** | ~512MB | ~735MB | ~150MB |
+| Startup time | **&lt;1s** | 30–60s | ~10s | ~5s |
+| Language | **Rust** | Java | Python | Go |
+| Zero-knowledge enc. | ✅ | ❌ | ❌ | ❌ |
+| No external deps | ✅ | ❌ | ❌ (Redis) | ❌ |
+| PKCE required | ✅ | Optional | Optional | Optional |
+| Runs on $6 VPS | ✅ | ❌ | ❌ | ⚠️ |
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Getting Started" icon="rocket" href="/getting-started">
+    Run OVLT, first login, create a tenant
+  </Card>
+  <Card title="API Reference" icon="rectangle-terminal" href="/api-reference">
+    All HTTP endpoints
+  </Card>
+  <Card title="Architecture" icon="sitemap" href="/architecture">
+    Multi-tenancy, RLS, encryption model
+  </Card>
+  <Card title="Security" icon="shield-halved" href="/security">
+    Security model, threat model, hardening
+  </Card>
+</CardGroup>

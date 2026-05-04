@@ -1,94 +1,100 @@
-# MFA (TOTP)
-
-OVLT supports TOTP-based MFA (RFC 6238), compatible with Google Authenticator, Authy, 1Password, and any standard TOTP app.
-
+---
+title: MFA (TOTP)
+description: Set up and manage TOTP-based two-factor authentication for users.
 ---
 
-## User flow
+OVLT supports TOTP-based MFA (RFC 6238) — compatible with Google Authenticator, Authy, 1Password, and any standard TOTP app. The TOTP secret is stored encrypted at rest (AES-256-GCM double-envelope).
 
-### 1. Setup (authenticated)
+## User setup flow
 
-```bash
-curl -X POST http://localhost:3000/auth/mfa/setup \
-  -H "Authorization: Bearer <access_token>" \
-  -H "X-Tenant-Slug: master"
-```
+<Steps>
+  <Step title="Initiate setup">
+    The user must be authenticated. Call the setup endpoint with their access token:
 
-Response:
+    ```bash
+    curl -X POST http://localhost:3000/auth/mfa/setup \
+      -H "Authorization: Bearer <access_token>" \
+      -H "X-Tenant-Slug: your-tenant"
+    ```
 
-```json
-{
-  "secret": "BASE32SECRET...",
-  "qr_code": "data:image/png;base64,..."
-}
-```
+    Response:
 
-Show the `qr_code` in your UI (it's an `<img src="...">` data URI) or let the user enter the `secret` manually in their authenticator app.
+    ```json
+    {
+      "secret": "BASE32SECRET...",
+      "qr_code": "data:image/png;base64,..."
+    }
+    ```
 
-### 2. Confirm
+    Render the `qr_code` as an `<img src="...">` in your UI, or display the `secret` for manual entry in the authenticator app.
+  </Step>
 
-After the user scans and enters the first code:
+  <Step title="Confirm the code">
+    After the user scans the QR code and enters their first 6-digit code:
 
-```bash
-curl -X POST http://localhost:3000/auth/mfa/confirm \
-  -H "Authorization: Bearer <access_token>" \
-  -H "X-Tenant-Slug: master" \
-  -H "Content-Type: application/json" \
-  -d '{"totp_code": "123456"}'
-```
+    ```bash
+    curl -X POST http://localhost:3000/auth/mfa/confirm \
+      -H "Authorization: Bearer <access_token>" \
+      -H "X-Tenant-Slug: your-tenant" \
+      -H "Content-Type: application/json" \
+      -d '{"totp_code": "123456"}'
+    ```
 
-MFA is now active on the account.
+    MFA is now active on the account. The plaintext secret is discarded — it is no longer retrievable.
+  </Step>
 
-### 3. Login with MFA
+  <Step title="Login with MFA enabled">
+    When MFA is active, a normal `POST /auth/login` returns a challenge instead of tokens:
 
-When MFA is enabled, a standard login returns a challenge instead of tokens:
+    ```json
+    { "mfa_required": true }
+    ```
 
-```json
-{"mfa_required": true}
-```
+    The client must then complete the MFA challenge:
 
-The user must then call the MFA challenge endpoint:
+    ```bash
+    curl -X POST http://localhost:3000/auth/mfa/challenge \
+      -H "X-Tenant-Slug: your-tenant" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "email": "user@example.com",
+        "totp_code": "123456"
+      }'
+    ```
 
-```bash
-curl -X POST http://localhost:3000/auth/mfa/challenge \
-  -H "X-Tenant-Slug: master" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "user@example.com",
-    "totp_code": "123456"
-  }'
-```
+    A successful challenge returns the same `access_token` / `refresh_token` pair as a normal login.
+  </Step>
+</Steps>
 
-Response is the same access/refresh token pair as a normal login.
+## Disable MFA
 
-### 4. Disable MFA (self-service)
+<Tabs>
+  <Tab title="Self-service (user)">
+    The user must provide a valid TOTP code to disable MFA:
 
-```bash
-curl -X POST http://localhost:3000/auth/mfa/disable \
-  -H "Authorization: Bearer <access_token>" \
-  -H "X-Tenant-Slug: master" \
-  -H "Content-Type: application/json" \
-  -d '{"totp_code": "123456"}'
-```
+    ```bash
+    curl -X POST http://localhost:3000/auth/mfa/disable \
+      -H "Authorization: Bearer <access_token>" \
+      -H "X-Tenant-Slug: your-tenant" \
+      -H "Content-Type: application/json" \
+      -d '{"totp_code": "123456"}'
+    ```
+  </Tab>
+  <Tab title="Admin override">
+    If a user loses their authenticator device and can't log in, an admin can disable MFA for them:
 
----
+    ```bash
+    curl -X DELETE http://localhost:3000/users/<user_id>/mfa \
+      -H "X-OVLT-Admin-Key: your-admin-key" \
+      -H "X-Tenant-Slug: your-tenant"
+    ```
 
-## Admin: disable MFA for a user
-
-If a user loses their authenticator and can't log in:
-
-```bash
-curl -X DELETE http://localhost:3000/users/<user_id>/mfa \
-  -H "X-OVLT-Admin-Key: your-admin-key" \
-  -H "X-Tenant-Slug: master"
-```
-
-Via TUI: Users tab → select user → `d` on the MFA row (or use admin disable option).
-
----
+    Via TUI: **Users** tab → select user → admin disable option.
+  </Tab>
+</Tabs>
 
 ## Notes
 
-- TOTP codes are 6 digits, 30-second window with ±1 step tolerance
-- The TOTP secret is stored encrypted at rest (AES-256-GCM, double-envelope)
-- Once confirmed, the plaintext secret is no longer retrievable — the user must re-setup if they lose their device
+- TOTP codes are 6 digits with a 30-second window and ±1 step clock-skew tolerance
+- Once MFA is confirmed, the plaintext TOTP secret is not retrievable — users must re-setup if they lose their device
+- The secret is stored AES-256-GCM encrypted with the tenant's double-envelope key hierarchy

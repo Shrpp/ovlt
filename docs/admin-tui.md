@@ -1,119 +1,127 @@
-# Admin TUI
-
-The `ovlt` binary is a terminal UI for managing OVLT. It connects to a running OVLT server over HTTP.
-
 ---
+title: Admin TUI
+description: Install and use the ovlt terminal UI to manage tenants, users, clients, roles, and permissions.
+---
+
+The `ovlt` binary is a terminal UI that connects to a running OVLT server over HTTP. Everything in the TUI maps 1:1 to an API call — use the [API Reference](/docs/api-reference) for scripted automation.
 
 ## Install
 
-Download from [GitHub Releases](https://github.com/shrpp/ovlt/releases/latest).
+<Tabs>
+  <Tab title="macOS (Apple Silicon)">
+    ```bash
+    curl -Lo ovlt https://github.com/shrpp/ovlt/releases/latest/download/ovlt-aarch64-apple-darwin
+    xattr -dr com.apple.quarantine ovlt
+    chmod +x ovlt && sudo mv ovlt /usr/local/bin/
+    ```
 
-**macOS**
-```bash
-# M1/M2/M3
-curl -Lo ovlt https://github.com/shrpp/ovlt/releases/latest/download/ovlt-aarch64-apple-darwin
-# Intel
-curl -Lo ovlt https://github.com/shrpp/ovlt/releases/latest/download/ovlt-x86_64-apple-darwin
+    <Note>
+      `xattr -dr com.apple.quarantine` is required because the binary is unsigned in alpha. macOS Gatekeeper blocks it without this step.
+    </Note>
+  </Tab>
+  <Tab title="macOS (Intel)">
+    ```bash
+    curl -Lo ovlt https://github.com/shrpp/ovlt/releases/latest/download/ovlt-x86_64-apple-darwin
+    xattr -dr com.apple.quarantine ovlt
+    chmod +x ovlt && sudo mv ovlt /usr/local/bin/
+    ```
+  </Tab>
+  <Tab title="Linux (x86_64)">
+    ```bash
+    curl -Lo ovlt https://github.com/shrpp/ovlt/releases/latest/download/ovlt-x86_64-unknown-linux-gnu
+    chmod +x ovlt && sudo mv ovlt /usr/local/bin/
+    ```
+  </Tab>
+  <Tab title="Linux (ARM64)">
+    ```bash
+    curl -Lo ovlt https://github.com/shrpp/ovlt/releases/latest/download/ovlt-aarch64-unknown-linux-gnu
+    chmod +x ovlt && sudo mv ovlt /usr/local/bin/
+    ```
+  </Tab>
+  <Tab title="Windows">
+    ```powershell
+    curl -Lo ovlt.exe https://github.com/shrpp/ovlt/releases/latest/download/ovlt-x86_64-pc-windows-msvc.exe
+    .\ovlt.exe --url http://localhost:3000
+    ```
 
-xattr -dr com.apple.quarantine ovlt   # required — binary is unsigned in alpha
-chmod +x ovlt && sudo mv ovlt /usr/local/bin/
-```
-
-**Linux**
-```bash
-# x86_64
-curl -Lo ovlt https://github.com/shrpp/ovlt/releases/latest/download/ovlt-x86_64-unknown-linux-gnu
-# ARM64
-curl -Lo ovlt https://github.com/shrpp/ovlt/releases/latest/download/ovlt-aarch64-unknown-linux-gnu
-
-chmod +x ovlt && sudo mv ovlt /usr/local/bin/
-```
-
-**Windows**
-```powershell
-curl -Lo ovlt.exe https://github.com/shrpp/ovlt/releases/latest/download/ovlt-x86_64-pc-windows-msvc.exe
-.\ovlt.exe --url http://localhost:3000
-```
-> Windows SmartScreen will show a warning because the binary is not yet code-signed. This is expected for alpha builds. Click **More info → Run anyway** to proceed.
+    <Note>
+      Windows SmartScreen will warn about the unsigned binary. Click **More info → Run anyway**.
+    </Note>
+  </Tab>
+</Tabs>
 
 ## Connect
 
 ```bash
 ovlt --url http://localhost:3000
-# or
+# or via env var:
 OVLT_URL=http://localhost:3000 ovlt
 ```
 
-On launch you are prompted for the **Admin Key** (`OVLT_ADMIN_KEY` from server config).
+On launch you are prompted for the **Admin Key** — the value you set in `OVLT_ADMIN_KEY` on the server.
 
----
-
-## Navigation
+## Keyboard reference
 
 | Key | Action |
 |-----|--------|
 | `Tab` / `Shift+Tab` | Move between tabs |
-| `↑` / `↓` or `j` / `k` | Move selection |
-| `Enter` | Open / confirm |
+| `↑` / `↓` or `j` / `k` | Move selection up/down |
+| `Enter` | Open item / confirm action |
 | `Esc` | Close modal / cancel |
 | `n` | New item |
 | `d` | Delete selected |
 | `e` | Edit selected |
-| `r` | Roles (M2M clients only) |
-| `?` | Toggle help |
+| `r` | Manage roles (clients only) |
+| `?` | Toggle help overlay |
 | `q` | Quit |
-
----
 
 ## Tabs
 
-### Tenants
+<AccordionGroup>
+  <Accordion title="Tenants">
+    List, create, and manage tenants. Each tenant is fully isolated — its users, clients, roles, and sessions belong to it alone.
 
-List, create, and manage tenants. Each tenant is isolated — users, clients, and roles belong to a single tenant.
+    - Press `n` to create a new tenant
+    - Select a tenant to scope all other tabs to it
+  </Accordion>
 
-### Users
+  <Accordion title="Users">
+    All users within the selected tenant.
 
-Lists all users in the selected tenant. You can:
-- Create users
-- View / edit user details
-- Delete users
-- Reset passwords (generates a reset token)
-- Get verification codes
+    - Create, edit, and delete users
+    - Reset passwords (generates a one-time reset token)
+    - Get email verification codes
+    - Admin-disable MFA for locked-out users
+  </Accordion>
 
-### Clients
+  <Accordion title="Clients">
+    OAuth 2.0 clients registered within the selected tenant.
 
-OAuth 2.0 clients within the selected tenant.
+    | Field | Notes |
+    |-------|-------|
+    | Name | Display name |
+    | Client ID | Auto-generated on creation |
+    | Client Secret | Auto-generated; shown once — save immediately |
+    | Grant Types | `authorization_code`, `client_credentials`, or both |
+    | Redirect URIs | Required for `authorization_code` flows |
+    | Scopes | Space-separated list of allowed scopes |
 
-Fields:
-- **Name** — display name
-- **Client ID** — auto-generated
-- **Client Secret** — auto-generated; shown once
-- **Grant Types** — `authorization_code`, `client_credentials`, or both
-- **Redirect URIs** — required for `authorization_code`
-- **Scopes** — space-separated allowed scopes
+    For M2M (`client_credentials`) clients, press `r` to assign roles that will be embedded in issued tokens.
+  </Accordion>
 
-For `client_credentials` (M2M) clients, press `r` to assign roles.
+  <Accordion title="Roles">
+    Roles scoped to the selected tenant. Roles can be assigned to users or to M2M clients.
+  </Accordion>
 
-### Roles
+  <Accordion title="Permissions">
+    Fine-grained permissions (resource + action pairs). Permissions are assigned to roles, which are then assigned to users or clients.
+  </Accordion>
 
-Roles for the selected tenant. Roles can be assigned to users or to M2M clients.
+  <Accordion title="Sessions">
+    Active sessions for the tenant. Press `d` to revoke a session immediately.
+  </Accordion>
 
-### Permissions
-
-Fine-grained permissions. Permissions are assigned to roles, which are then assigned to users or clients.
-
-### Sessions
-
-Active sessions for the tenant. You can revoke a session by pressing `d`.
-
-### Audit Log
-
-Read-only view of all auth events (logins, logouts, failures, MFA events, token issues) for the tenant.
-
----
-
-## Tips for agents
-
-- The TUI requires a terminal — use the [API Reference](api-reference.md) for scripted automation
-- All TUI operations map 1:1 to API endpoints under `/tenants`, `/users`, `/clients`, `/roles`, `/permissions`
-- `OVLT_URL` env var eliminates the `--url` flag
+  <Accordion title="Audit Log">
+    Read-only view of all auth events — logins, logouts, failures, MFA events, token issuances — for the selected tenant.
+  </Accordion>
+</AccordionGroup>
