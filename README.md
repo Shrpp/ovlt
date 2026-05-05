@@ -1,8 +1,6 @@
 <div align="center">
 
-<img src="https://cdn.ovlt.tech/logo.png" alt="OVLT logo" width="320" />
-
-<br/>
+<img src="https://cdn.ovlt.tech/logo.png" alt="OVLT logo" width="320" style="margin-bottom: 16px" />
 
 **Auth infrastructure that fits in 20MB.**
 
