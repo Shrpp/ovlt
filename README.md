@@ -14,12 +14,14 @@ OAuth2 + OIDC · Multi-tenant · Zero-knowledge encrypted · Self-hosted on your
 [![][badge-crate]](https://crates.io/crates/hefesto)
 [![][badge-docker]](https://github.com/shrpp/ovlt/pkgs/container/ovlt-core)
 [![][badge-status]](https://github.com/shrpp/ovlt/releases)
+[![][badge-docs]](https://ovlt.tech/docs)
 [![][badge-rust]](https://www.rust-lang.org)
 
 [badge-license]: https://img.shields.io/badge/license-ELv2-00d4ff?style=flat-square&logoColor=white
 [badge-crate]: https://img.shields.io/crates/v/hefesto?style=flat-square&label=hefesto&color=00d4ff&logo=rust&logoColor=white
 [badge-docker]: https://img.shields.io/badge/docker-ghcr.io-00d4ff?style=flat-square&logo=docker&logoColor=white
 [badge-status]: https://img.shields.io/badge/status-alpha-ff6b35?style=flat-square
+[badge-docs]: https://img.shields.io/badge/docs-Mintlify-00d4ff?style=flat-square
 [badge-rust]: https://img.shields.io/badge/built_with-Rust-f0ebe4?style=flat-square&logo=rust&logoColor=white
 
 </div>
