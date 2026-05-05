@@ -1,6 +1,6 @@
 <div align="center">
 
-# ovlt/
+<img src="https://cdn.ovlt.tech/logo.png" alt="OVLT logo" width="120" />
 
 <br/>
 
