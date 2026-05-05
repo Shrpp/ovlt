@@ -48,7 +48,12 @@ pub fn render(frame: &mut Frame, app: &App) {
     frame.render_widget(Clear, area);
 
     let border_block = Block::default()
-        .title(" OVLT Admin ")
+        .title(Line::from(vec![
+            Span::raw(" "),
+            Span::styled("ovlt", Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+            Span::styled("/", Style::default().fg(Color::Rgb(0, 255, 255)).add_modifier(Modifier::BOLD)),
+            Span::raw(" "),
+        ]))
         .title_alignment(Alignment::Center)
         .borders(Borders::ALL)
         .border_style(Style::default().fg(Color::Cyan));

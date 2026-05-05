@@ -937,6 +937,52 @@ impl Client {
             .await?;
         self.check(resp).await
     }
+
+    pub async fn get_smtp(&self, tenant_id: &str) -> ApiResult<SmtpConfigResponse> {
+        let resp = self
+            .inner
+            .get(format!("{}/admin/smtp", self.base_url))
+            .headers(self.tenant_headers(tenant_id))
+            .send()
+            .await?;
+        self.check(resp).await
+    }
+
+    pub async fn put_smtp(
+        &self,
+        tenant_id: &str,
+        host: &str,
+        port: i32,
+        username: &str,
+        password: Option<&str>,
+        from_name: &str,
+        from_email: &str,
+        use_tls: bool,
+        enabled: bool,
+    ) -> ApiResult<serde_json::Value> {
+        let mut body = serde_json::json!({
+            "host": host,
+            "port": port,
+            "username": username,
+            "from_name": from_name,
+            "from_email": from_email,
+            "use_tls": use_tls,
+            "enabled": enabled,
+        });
+        if let Some(pw) = password {
+            if !pw.is_empty() {
+                body["password"] = serde_json::json!(pw);
+            }
+        }
+        let resp = self
+            .inner
+            .put(format!("{}/admin/smtp", self.base_url))
+            .headers(self.tenant_headers(tenant_id))
+            .json(&body)
+            .send()
+            .await?;
+        self.check(resp).await
+    }
 }
 
 // ── Response DTOs ─────────────────────────────────────────────────────────────
@@ -1048,6 +1094,18 @@ pub struct TokenTtlResponse {
 pub struct RegistrationPolicyResponse {
     pub allow_public_registration: bool,
     pub require_email_verified: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct SmtpConfigResponse {
+    pub host: String,
+    pub port: i32,
+    pub username: String,
+    pub password_set: bool,
+    pub from_name: String,
+    pub from_email: String,
+    pub use_tls: bool,
+    pub enabled: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]

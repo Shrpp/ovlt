@@ -1,4 +1,5 @@
 pub mod admin_auth;
+pub mod admin_smtp;
 pub mod admin_identity_providers;
 pub mod admin_permissions;
 pub mod admin_roles;

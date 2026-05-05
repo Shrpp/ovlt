@@ -7,7 +7,7 @@ use crate::{
     entity::one_time_tokens,
     error::AppError,
     middleware::tenant::TenantContext,
-    services::{one_time_token_service, user_service},
+    services::{email_service, one_time_token_service, user_service},
     state::AppState,
 };
 
@@ -52,6 +52,41 @@ pub async fn forgot_password(
                 RESET_EXPIRY_MINUTES,
             )
             .await?;
+
+            let email_plain = hefesto::decrypt(
+                &user.email,
+                &ctx.tenant_key,
+                &state.config.master_encryption_key,
+            )
+            .unwrap_or_default();
+
+            let reset_link = format!(
+                "{}/auth/reset-password?token={}",
+                state.config.ovlt_issuer, token
+            );
+            let html = format!(
+                "<p>You requested a password reset.</p>\
+                 <p><a href=\"{reset_link}\">Reset your password</a></p>\
+                 <p>Or use this token: <code>{token}</code></p>\
+                 <p>This link expires in {RESET_EXPIRY_MINUTES} minutes.</p>"
+            );
+            let text = format!(
+                "Password reset token: {token}\n\
+                 Reset link: {reset_link}\n\
+                 Expires in {RESET_EXPIRY_MINUTES} minutes."
+            );
+
+            email_service::try_send(
+                &state.db,
+                ctx.tenant_id,
+                &ctx.tenant_key,
+                &state.config.master_encryption_key,
+                &email_plain,
+                "Reset your password",
+                &html,
+                &text,
+            )
+            .await;
         }
     }
 

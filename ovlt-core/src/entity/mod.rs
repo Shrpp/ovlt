@@ -15,6 +15,7 @@ pub mod role_permissions;
 pub mod roles;
 pub mod sessions;
 pub mod tenant_settings;
+pub mod tenant_smtp_config;
 pub mod tenants;
 pub mod totp_secrets;
 pub mod user_roles;

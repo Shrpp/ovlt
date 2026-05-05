@@ -1710,7 +1710,7 @@ async fn handle_content_key(app: &mut App, code: KeyCode) {
             app.settings.field = 0;
         }
         KeyCode::Right if app.settings.entered => {
-            if app.settings.section < 3 {
+            if app.settings.section < 4 {
                 app.settings.section += 1;
             }
             app.settings.field = 0;
@@ -3036,11 +3036,12 @@ async fn perform_delete(app: &mut App, id: String) {
 async fn load_settings(app: &mut App, tid: String) {
     app.settings.loading = true;
     let client = app.client.clone();
-    let (policy_r, lockout_r, tokens_r, reg_r) = tokio::join!(
+    let (policy_r, lockout_r, tokens_r, reg_r, smtp_r) = tokio::join!(
         client.get_password_policy(&tid),
         client.get_lockout_policy(&tid),
         client.get_token_ttl(&tid),
         client.get_registration_policy(&tid),
+        client.get_smtp(&tid),
     );
     if let Ok(p) = policy_r {
         app.settings.policy_min_length = p.min_length.to_string();
@@ -3061,6 +3062,17 @@ async fn load_settings(app: &mut App, tid: String) {
         app.settings.allow_public_registration = r.allow_public_registration;
         app.settings.require_email_verified = r.require_email_verified;
     }
+    if let Ok(s) = smtp_r {
+        app.settings.smtp_host = s.host;
+        app.settings.smtp_port = s.port.to_string();
+        app.settings.smtp_username = s.username;
+        app.settings.smtp_password = String::new(); // never pre-fill password
+        app.settings.smtp_from_name = s.from_name;
+        app.settings.smtp_from_email = s.from_email;
+        app.settings.smtp_use_tls = s.use_tls;
+        app.settings.smtp_enabled = s.enabled;
+        app.settings.smtp_password_set = s.password_set;
+    }
     app.settings.loading = false;
 }
 
@@ -3070,6 +3082,7 @@ fn handle_settings_tab(app: &mut App) {
         1 => 3, // 3 numeric fields
         2 => 2, // 2 numeric fields
         3 => 2, // 2 toggles
+        4 => 8, // host, port, username, password, from_name, from_email, use_tls, enabled
         _ => 1,
     };
     app.settings.field = (app.settings.field + 1) % max;
@@ -3087,6 +3100,11 @@ fn handle_settings_toggle(app: &mut App) {
         3 => match s.field {
             0 => s.allow_public_registration = !s.allow_public_registration,
             1 => s.require_email_verified = !s.require_email_verified,
+            _ => {}
+        },
+        4 => match s.field {
+            6 => s.smtp_use_tls = !s.smtp_use_tls,
+            7 => s.smtp_enabled = !s.smtp_enabled,
             _ => {}
         },
         _ => {}
@@ -3113,15 +3131,37 @@ fn handle_settings_backspace(app: &mut App) -> bool {
             _ => false,
         },
         3 => false, // all toggles — exit
+        4 => match s.field {
+            0 => s.smtp_host.pop().is_some(),
+            1 => s.smtp_port.pop().is_some(),
+            2 => s.smtp_username.pop().is_some(),
+            3 => s.smtp_password.pop().is_some(),
+            4 => s.smtp_from_name.pop().is_some(),
+            5 => s.smtp_from_email.pop().is_some(),
+            _ => false, // toggles — exit
+        },
         _ => false,
     }
 }
 
 fn handle_settings_char(app: &mut App, c: char) {
+    let s = &mut app.settings;
+    // SMTP fields accept arbitrary printable chars; other sections are digits-only.
+    if s.section == 4 {
+        match s.field {
+            0 => s.smtp_host.push(c),
+            1 if c.is_ascii_digit() => s.smtp_port.push(c),
+            2 => s.smtp_username.push(c),
+            3 => s.smtp_password.push(c),
+            4 => s.smtp_from_name.push(c),
+            5 => s.smtp_from_email.push(c),
+            _ => {}
+        }
+        return;
+    }
     if !c.is_ascii_digit() {
         return;
     }
-    let s = &mut app.settings;
     match s.section {
         0 if s.field == 0 => {
             s.policy_min_length.push(c);
@@ -3186,6 +3226,37 @@ async fn save_settings_section(app: &mut App) {
                 .await
             {
                 Ok(_) => app.set_status("Registration policy saved"),
+                Err(e) => app.modal = Modal::Error(format!("{e}")),
+            }
+        }
+        4 => {
+            let port: i32 = app.settings.smtp_port.parse().unwrap_or(587);
+            let pw = if app.settings.smtp_password.is_empty() {
+                None
+            } else {
+                Some(app.settings.smtp_password.as_str())
+            };
+            match app
+                .client
+                .put_smtp(
+                    &tid,
+                    &app.settings.smtp_host.clone(),
+                    port,
+                    &app.settings.smtp_username.clone(),
+                    pw,
+                    &app.settings.smtp_from_name.clone(),
+                    &app.settings.smtp_from_email.clone(),
+                    app.settings.smtp_use_tls,
+                    app.settings.smtp_enabled,
+                )
+                .await
+            {
+                Ok(_) => {
+                    app.settings.smtp_password_set = !app.settings.smtp_password.is_empty()
+                        || app.settings.smtp_password_set;
+                    app.settings.smtp_password = String::new();
+                    app.set_status("SMTP config saved");
+                }
                 Err(e) => app.modal = Modal::Error(format!("{e}")),
             }
         }
