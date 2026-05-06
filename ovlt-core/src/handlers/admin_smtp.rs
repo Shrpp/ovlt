@@ -28,7 +28,7 @@ fn extract_tenant_id(headers: &HeaderMap) -> Result<Uuid, AppError> {
         .ok_or_else(|| AppError::InvalidInput("x-ovlt-tenant-id header required".into()))
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct SmtpConfigResponse {
     pub host: String,
     pub port: i32,
@@ -41,6 +41,22 @@ pub struct SmtpConfigResponse {
     pub updated_at: String,
 }
 
+#[utoipa::path(
+    get,
+    path = "/admin/smtp",
+    tag = "admin-smtp",
+    responses(
+        (status = 200, description = "Current SMTP configuration", body = SmtpConfigResponse),
+        (status = 404, description = "SMTP not configured"),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("admin_key" = [])
+    ),
+    params(
+        ("X-Ovlt-Tenant-Id" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn get_smtp(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -67,7 +83,7 @@ pub async fn get_smtp(
     }
 }
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate, utoipa::ToSchema)]
 pub struct UpsertSmtpRequest {
     #[validate(length(min = 1, max = 253))]
     pub host: String,
@@ -84,6 +100,22 @@ pub struct UpsertSmtpRequest {
     pub enabled: Option<bool>,
 }
 
+#[utoipa::path(
+    put,
+    path = "/admin/smtp",
+    tag = "admin-smtp",
+    request_body = UpsertSmtpRequest,
+    responses(
+        (status = 200, description = "SMTP configuration saved"),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("admin_key" = [])
+    ),
+    params(
+        ("X-Ovlt-Tenant-Id" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn put_smtp(
     State(state): State<AppState>,
     headers: HeaderMap,

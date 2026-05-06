@@ -19,7 +19,7 @@ use crate::{
     state::AppState,
 };
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate, utoipa::ToSchema)]
 pub struct RegisterRequest {
     #[validate(email)]
     pub email: String,
@@ -27,13 +27,27 @@ pub struct RegisterRequest {
     pub password: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct RegisterResponse {
     pub id: String,
     pub email: String,
     pub created_at: String,
 }
 
+#[utoipa::path(
+    post,
+    path = "/auth/register",
+    tag = "auth",
+    request_body = RegisterRequest,
+    responses(
+        (status = 201, description = "User registered", body = RegisterResponse),
+        (status = 409, description = "Email already exists"),
+        (status = 422, description = "Validation error"),
+    ),
+    params(
+        ("X-Tenant-ID" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn register(
     State(state): State<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,

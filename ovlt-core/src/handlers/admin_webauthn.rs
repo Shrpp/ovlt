@@ -23,7 +23,7 @@ fn extract_tenant_id(headers: &HeaderMap) -> Result<Uuid, AppError> {
         .ok_or_else(|| AppError::InvalidInput("x-ovlt-tenant-id header required".into()))
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct PasskeyInfo {
     pub credential_id: String,
     pub name: String,
@@ -33,6 +33,22 @@ pub struct PasskeyInfo {
     pub last_used_at: Option<String>,
 }
 
+#[utoipa::path(
+    get,
+    path = "/admin/users/{id}/passkeys",
+    tag = "admin-webauthn",
+    responses(
+        (status = 200, description = "List of passkeys for user", body = Vec<PasskeyInfo>),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("admin_key" = [])
+    ),
+    params(
+        ("id" = String, Path, description = "User UUID"),
+        ("X-Ovlt-Tenant-Id" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn list_passkeys(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -66,6 +82,23 @@ pub async fn list_passkeys(
     Ok(Json(response))
 }
 
+#[utoipa::path(
+    delete,
+    path = "/admin/users/{id}/passkeys/{cred_id}",
+    tag = "admin-webauthn",
+    responses(
+        (status = 204, description = "Passkey deleted"),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("admin_key" = [])
+    ),
+    params(
+        ("id" = String, Path, description = "User UUID"),
+        ("cred_id" = String, Path, description = "Credential ID"),
+        ("X-Ovlt-Tenant-Id" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn delete_passkey(
     State(state): State<AppState>,
     headers: HeaderMap,

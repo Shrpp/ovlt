@@ -7,7 +7,7 @@ use serde::Deserialize;
 
 use crate::{error::AppError, services::token_service, state::AppState};
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct RevokeRequest {
     pub token: String,
     pub token_type_hint: Option<String>,
@@ -15,6 +15,18 @@ pub struct RevokeRequest {
 
 /// RFC 7009 token revocation endpoint.
 /// Always returns 200; errors are silently swallowed (per spec).
+#[utoipa::path(
+    post,
+    path = "/oauth/revoke",
+    tag = "oauth",
+    request_body(content = RevokeRequest, content_type = "application/x-www-form-urlencoded"),
+    responses(
+        (status = 200, description = "Token revoked (always 200 per RFC 7009)"),
+    ),
+    security(
+        ("bearer_auth" = [])
+    )
+)]
 pub async fn revoke(
     State(state): State<AppState>,
     headers: HeaderMap,

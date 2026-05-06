@@ -14,11 +14,27 @@ use crate::{
     state::AppState,
 };
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct LogoutRequest {
     pub refresh_token: String,
 }
 
+#[utoipa::path(
+    post,
+    path = "/auth/logout",
+    tag = "auth",
+    request_body = LogoutRequest,
+    responses(
+        (status = 204, description = "Logged out successfully"),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("bearer_auth" = [])
+    ),
+    params(
+        ("X-Tenant-ID" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn logout(
     State(state): State<AppState>,
     headers: HeaderMap,

@@ -13,7 +13,7 @@ fn extract_tenant_id(headers: &HeaderMap) -> Result<Uuid, AppError> {
         .ok_or_else(|| AppError::InvalidInput("x-ovlt-tenant-id header required".into()))
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct AuditLogEntry {
     pub id: String,
     pub user_id: Option<String>,
@@ -23,6 +23,21 @@ pub struct AuditLogEntry {
     pub created_at: String,
 }
 
+#[utoipa::path(
+    get,
+    path = "/audit-log",
+    tag = "audit",
+    responses(
+        (status = 200, description = "List of audit log entries", body = Vec<AuditLogEntry>),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("admin_key" = [])
+    ),
+    params(
+        ("X-Ovlt-Tenant-Id" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn list_audit_log(
     State(state): State<AppState>,
     headers: HeaderMap,

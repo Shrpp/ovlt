@@ -20,7 +20,7 @@ use crate::{
     state::AppState,
 };
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate, utoipa::ToSchema)]
 pub struct LoginRequest {
     #[validate(email)]
     pub email: String,
@@ -28,19 +28,34 @@ pub struct LoginRequest {
     pub password: String,
 }
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Clone, utoipa::ToSchema)]
 pub struct TokenResponse {
     pub access_token: String,
     pub refresh_token: String,
     pub expires_in: i64,
 }
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Clone, utoipa::ToSchema)]
 pub struct MfaRequiredResponse {
     pub mfa_required: bool,
     pub mfa_token: String,
 }
 
+#[utoipa::path(
+    post,
+    path = "/auth/login",
+    tag = "auth",
+    request_body = LoginRequest,
+    responses(
+        (status = 200, description = "Login successful", body = TokenResponse),
+        (status = 200, description = "MFA required", body = MfaRequiredResponse),
+        (status = 401, description = "Invalid credentials"),
+        (status = 422, description = "Validation error"),
+    ),
+    params(
+        ("X-Tenant-ID" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn login(
     State(state): State<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,

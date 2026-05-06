@@ -13,7 +13,7 @@ use crate::{
     entity::tenants, error::AppError, handlers::admin_auth, services::seed_service, state::AppState,
 };
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate, utoipa::ToSchema)]
 pub struct CreateTenantRequest {
     #[validate(length(min = 1, max = 100))]
     pub name: String,
@@ -21,7 +21,7 @@ pub struct CreateTenantRequest {
     pub slug: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct TenantResponse {
     pub id: String,
     pub name: String,
@@ -45,6 +45,19 @@ fn validate_slug(slug: &str) -> Result<(), AppError> {
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/tenants",
+    tag = "tenants",
+    request_body = CreateTenantRequest,
+    responses(
+        (status = 201, description = "Tenant created", body = TenantResponse),
+        (status = 409, description = "Slug already exists"),
+    ),
+    security(
+        ("admin_key" = [])
+    )
+)]
 pub async fn create_tenant(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -107,12 +120,20 @@ pub async fn create_tenant(
     ))
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct TenantSlugEntry {
     pub slug: String,
     pub name: String,
 }
 
+#[utoipa::path(
+    get,
+    path = "/tenants/slugs",
+    tag = "tenants",
+    responses(
+        (status = 200, description = "List of tenant slugs", body = Vec<TenantSlugEntry>),
+    )
+)]
 pub async fn list_tenant_slugs(
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
@@ -127,6 +148,18 @@ pub async fn list_tenant_slugs(
     Ok(Json(resp))
 }
 
+#[utoipa::path(
+    get,
+    path = "/tenants",
+    tag = "tenants",
+    responses(
+        (status = 200, description = "List of tenants", body = Vec<TenantResponse>),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("admin_key" = [])
+    )
+)]
 pub async fn list_tenants(
     State(state): State<AppState>,
     headers: HeaderMap,

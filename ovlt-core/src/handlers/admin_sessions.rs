@@ -17,7 +17,7 @@ fn extract_tenant_id(headers: &HeaderMap) -> Result<Uuid, AppError> {
         .ok_or_else(|| AppError::InvalidInput("x-ovlt-tenant-id header required".into()))
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct SessionResponse {
     pub id: String,
     pub user_id: String,
@@ -28,6 +28,21 @@ pub struct SessionResponse {
     pub expires_at: String,
 }
 
+#[utoipa::path(
+    get,
+    path = "/admin/sessions",
+    tag = "admin-sessions",
+    responses(
+        (status = 200, description = "List of active sessions", body = Vec<SessionResponse>),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("admin_key" = [])
+    ),
+    params(
+        ("X-Ovlt-Tenant-Id" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn list_sessions(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -61,6 +76,22 @@ pub async fn list_sessions(
     Ok(Json(response))
 }
 
+#[utoipa::path(
+    delete,
+    path = "/admin/sessions/{id}",
+    tag = "admin-sessions",
+    responses(
+        (status = 204, description = "Session deleted"),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("admin_key" = [])
+    ),
+    params(
+        ("id" = String, Path, description = "Session ID"),
+        ("X-Ovlt-Tenant-Id" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn delete_session(
     State(state): State<AppState>,
     headers: HeaderMap,

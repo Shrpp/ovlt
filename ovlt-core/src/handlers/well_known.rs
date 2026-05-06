@@ -3,6 +3,14 @@ use serde_json::json;
 
 use crate::state::AppState;
 
+#[utoipa::path(
+    get,
+    path = "/.well-known/openid-configuration",
+    tag = "oauth",
+    responses(
+        (status = 200, description = "OpenID Connect discovery document"),
+    )
+)]
 pub async fn discovery(State(state): State<AppState>) -> impl IntoResponse {
     let base = &state.config.ovlt_issuer;
     Json(json!({
@@ -24,6 +32,14 @@ pub async fn discovery(State(state): State<AppState>) -> impl IntoResponse {
     }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/.well-known/jwks.json",
+    tag = "oauth",
+    responses(
+        (status = 200, description = "JSON Web Key Set"),
+    )
+)]
 pub async fn jwks(State(state): State<AppState>) -> impl IntoResponse {
     axum::response::Response::builder()
         .header("Content-Type", "application/json")

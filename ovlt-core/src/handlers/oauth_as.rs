@@ -25,7 +25,7 @@ use crate::{
 
 // ── /oauth/authorize ─────────────────────────────────────────────────────────
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema, utoipa::IntoParams)]
 pub struct AuthorizeParams {
     pub client_id: String,
     pub redirect_uri: String,
@@ -37,6 +37,17 @@ pub struct AuthorizeParams {
     pub nonce: Option<String>,
 }
 
+#[utoipa::path(
+    get,
+    path = "/oauth/authorize",
+    tag = "oauth",
+    params(AuthorizeParams),
+    responses(
+        (status = 302, description = "Redirect with authorization code"),
+        (status = 401, description = "Unauthorized"),
+        (status = 400, description = "Invalid request"),
+    )
+)]
 pub async fn authorize(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -135,7 +146,7 @@ pub async fn authorize(
 
 // ── /oauth/token ─────────────────────────────────────────────────────────────
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct TokenRequest {
     pub grant_type: String,
     pub code: Option<String>,
@@ -143,17 +154,17 @@ pub struct TokenRequest {
     pub client_id: String,
     pub client_secret: Option<String>,
     pub code_verifier: Option<String>,
-    pub scope: Option<String>, // for client_credentials
+    pub scope: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct TokenResponse {
     pub access_token: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub refresh_token: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id_token: Option<String>,
-    pub token_type: &'static str,
+    pub token_type: String,
     pub expires_in: i64,
     pub scope: String,
 }
@@ -170,6 +181,17 @@ struct IdTokenClaims {
     nonce: Option<String>,
 }
 
+#[utoipa::path(
+    post,
+    path = "/oauth/token",
+    tag = "oauth",
+    request_body(content = TokenRequest, content_type = "application/x-www-form-urlencoded"),
+    responses(
+        (status = 200, description = "Token response", body = TokenResponse),
+        (status = 401, description = "Unauthorized"),
+        (status = 400, description = "Invalid request"),
+    )
+)]
 pub async fn token(
     State(state): State<AppState>,
     Form(req): Form<TokenRequest>,
@@ -347,7 +369,7 @@ async fn token_authorization_code(
         access_token,
         refresh_token: Some(refresh_token),
         id_token: Some(id_token),
-        token_type: "Bearer",
+        token_type: "Bearer".to_string(),
         expires_in: access_ttl * 60,
         scope: scope_str,
     }))
@@ -419,7 +441,7 @@ async fn token_client_credentials(
         access_token,
         refresh_token: None,
         id_token: None,
-        token_type: "Bearer",
+        token_type: "Bearer".to_string(),
         expires_in: access_ttl * 60,
         scope: final_scopes.join(" "),
     }))
@@ -427,11 +449,24 @@ async fn token_client_credentials(
 
 // ── /oauth/introspect ─────────────────────────────────────────────────────────
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct IntrospectRequest {
     pub token: String,
 }
 
+#[utoipa::path(
+    post,
+    path = "/oauth/introspect",
+    tag = "oauth",
+    request_body(content = IntrospectRequest, content_type = "application/x-www-form-urlencoded"),
+    responses(
+        (status = 200, description = "Token introspection result"),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("admin_key" = [])
+    )
+)]
 pub async fn introspect(
     State(state): State<AppState>,
     headers: HeaderMap,

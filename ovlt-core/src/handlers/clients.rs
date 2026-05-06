@@ -18,7 +18,7 @@ fn extract_tenant_id(headers: &HeaderMap) -> Result<Uuid, AppError> {
         .ok_or_else(|| AppError::InvalidInput("x-ovlt-tenant-id header required".into()))
 }
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate, utoipa::ToSchema)]
 pub struct CreateClientRequest {
     #[validate(length(min = 1, max = 100))]
     pub name: String,
@@ -30,7 +30,7 @@ pub struct CreateClientRequest {
     pub refresh_token_ttl_days: Option<i32>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct ClientResponse {
     pub id: String,
     pub client_id: String,
@@ -47,6 +47,22 @@ pub struct ClientResponse {
     pub created_at: String,
 }
 
+#[utoipa::path(
+    post,
+    path = "/clients",
+    tag = "clients",
+    request_body = CreateClientRequest,
+    responses(
+        (status = 201, description = "Client created", body = ClientResponse),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("admin_key" = [])
+    ),
+    params(
+        ("X-Ovlt-Tenant-Id" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn create_client(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -118,6 +134,21 @@ pub async fn create_client(
     ))
 }
 
+#[utoipa::path(
+    get,
+    path = "/clients",
+    tag = "clients",
+    responses(
+        (status = 200, description = "List of clients", body = Vec<ClientResponse>),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("admin_key" = [])
+    ),
+    params(
+        ("X-Ovlt-Tenant-Id" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn list_clients(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -155,7 +186,7 @@ pub async fn list_clients(
     Ok(Json(response))
 }
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate, utoipa::ToSchema)]
 pub struct UpdateClientRequest {
     #[validate(length(min = 1, max = 100))]
     pub name: String,
@@ -167,6 +198,24 @@ pub struct UpdateClientRequest {
     pub grant_types: Option<Vec<String>>,
 }
 
+#[utoipa::path(
+    put,
+    path = "/clients/{id}",
+    tag = "clients",
+    request_body = UpdateClientRequest,
+    responses(
+        (status = 200, description = "Client updated", body = ClientResponse),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Client not found"),
+    ),
+    security(
+        ("admin_key" = [])
+    ),
+    params(
+        ("id" = String, Path, description = "Client UUID"),
+        ("X-Ovlt-Tenant-Id" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn update_client(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -231,6 +280,22 @@ pub async fn update_client(
     }))
 }
 
+#[utoipa::path(
+    delete,
+    path = "/clients/{id}",
+    tag = "clients",
+    responses(
+        (status = 204, description = "Client deactivated"),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("admin_key" = [])
+    ),
+    params(
+        ("id" = String, Path, description = "Client UUID"),
+        ("X-Ovlt-Tenant-Id" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn deactivate_client(
     State(state): State<AppState>,
     headers: HeaderMap,

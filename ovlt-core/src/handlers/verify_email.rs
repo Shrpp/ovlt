@@ -12,7 +12,7 @@ use crate::{
     state::AppState,
 };
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate, utoipa::ToSchema)]
 pub struct VerifyOtpRequest {
     #[validate(email)]
     pub email: String,
@@ -23,6 +23,20 @@ pub struct VerifyOtpRequest {
 /// `POST /auth/verify-otp`
 /// Accepts the 6-digit OTP the admin shared with the user.
 /// Marks the user's email as verified.
+#[utoipa::path(
+    post,
+    path = "/auth/verify-otp",
+    tag = "auth",
+    request_body = VerifyOtpRequest,
+    responses(
+        (status = 200, description = "Email verified successfully"),
+        (status = 401, description = "Invalid OTP"),
+        (status = 422, description = "Validation error"),
+    ),
+    params(
+        ("X-Tenant-ID" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn verify_email(
     State(state): State<AppState>,
     Extension(ctx): Extension<TenantContext>,

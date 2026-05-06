@@ -12,7 +12,7 @@ use crate::{
 
 // ── Password policy ───────────────────────────────────────────────────────────
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct PolicyResponse {
     pub min_length: i32,
     pub require_uppercase: bool,
@@ -21,6 +21,21 @@ pub struct PolicyResponse {
     pub history_size: i32,
 }
 
+#[utoipa::path(
+    get,
+    path = "/settings/password-policy",
+    tag = "settings",
+    responses(
+        (status = 200, description = "Current password policy", body = PolicyResponse),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("bearer_auth" = [])
+    ),
+    params(
+        ("X-Tenant-ID" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn get_policy(
     State(state): State<AppState>,
     Extension(ctx): Extension<TenantContext>,
@@ -46,7 +61,7 @@ pub async fn get_policy(
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct UpsertPolicyRequest {
     pub min_length: i32,
     pub require_uppercase: bool,
@@ -55,6 +70,22 @@ pub struct UpsertPolicyRequest {
     pub history_size: i32,
 }
 
+#[utoipa::path(
+    put,
+    path = "/settings/password-policy",
+    tag = "settings",
+    request_body = UpsertPolicyRequest,
+    responses(
+        (status = 200, description = "Password policy saved"),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("bearer_auth" = [])
+    ),
+    params(
+        ("X-Tenant-ID" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn put_policy(
     State(state): State<AppState>,
     Extension(ctx): Extension<TenantContext>,
@@ -82,13 +113,28 @@ pub async fn put_policy(
 
 // ── Lockout policy ────────────────────────────────────────────────────────────
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct LockoutResponse {
     pub max_attempts: i32,
     pub window_minutes: i32,
     pub duration_minutes: i32,
 }
 
+#[utoipa::path(
+    get,
+    path = "/settings/lockout",
+    tag = "settings",
+    responses(
+        (status = 200, description = "Current lockout policy", body = LockoutResponse),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("bearer_auth" = [])
+    ),
+    params(
+        ("X-Tenant-ID" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn get_lockout(
     State(state): State<AppState>,
     Extension(ctx): Extension<TenantContext>,
@@ -101,13 +147,29 @@ pub async fn get_lockout(
     }))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct UpsertLockoutRequest {
     pub max_attempts: i32,
     pub window_minutes: i32,
     pub duration_minutes: i32,
 }
 
+#[utoipa::path(
+    put,
+    path = "/settings/lockout",
+    tag = "settings",
+    request_body = UpsertLockoutRequest,
+    responses(
+        (status = 200, description = "Lockout policy saved"),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("bearer_auth" = [])
+    ),
+    params(
+        ("X-Tenant-ID" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn put_lockout(
     State(state): State<AppState>,
     Extension(ctx): Extension<TenantContext>,
@@ -138,12 +200,27 @@ pub async fn put_lockout(
 
 // ── Token TTL ─────────────────────────────────────────────────────────────────
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct TokenTtlResponse {
     pub access_token_ttl_minutes: i32,
     pub refresh_token_ttl_days: i32,
 }
 
+#[utoipa::path(
+    get,
+    path = "/settings/tokens",
+    tag = "settings",
+    responses(
+        (status = 200, description = "Current token TTL settings", body = TokenTtlResponse),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("bearer_auth" = [])
+    ),
+    params(
+        ("X-Tenant-ID" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn get_token_ttl(
     State(state): State<AppState>,
     Extension(ctx): Extension<TenantContext>,
@@ -155,12 +232,28 @@ pub async fn get_token_ttl(
     }))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct UpsertTokenTtlRequest {
     pub access_token_ttl_minutes: i32,
     pub refresh_token_ttl_days: i32,
 }
 
+#[utoipa::path(
+    put,
+    path = "/settings/tokens",
+    tag = "settings",
+    request_body = UpsertTokenTtlRequest,
+    responses(
+        (status = 200, description = "Token TTL settings saved"),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("bearer_auth" = [])
+    ),
+    params(
+        ("X-Tenant-ID" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn put_token_ttl(
     State(state): State<AppState>,
     Extension(ctx): Extension<TenantContext>,
@@ -187,12 +280,27 @@ pub async fn put_token_ttl(
 
 // ── Registration policy ───────────────────────────────────────────────────────
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct RegistrationResponse {
     pub allow_public_registration: bool,
     pub require_email_verified: bool,
 }
 
+#[utoipa::path(
+    get,
+    path = "/settings/registration",
+    tag = "settings",
+    responses(
+        (status = 200, description = "Current registration policy", body = RegistrationResponse),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("bearer_auth" = [])
+    ),
+    params(
+        ("X-Tenant-ID" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn get_registration(
     State(state): State<AppState>,
     Extension(ctx): Extension<TenantContext>,
@@ -204,12 +312,28 @@ pub async fn get_registration(
     }))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct UpsertRegistrationRequest {
     pub allow_public_registration: bool,
     pub require_email_verified: bool,
 }
 
+#[utoipa::path(
+    put,
+    path = "/settings/registration",
+    tag = "settings",
+    request_body = UpsertRegistrationRequest,
+    responses(
+        (status = 200, description = "Registration policy saved"),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("bearer_auth" = [])
+    ),
+    params(
+        ("X-Tenant-ID" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn put_registration(
     State(state): State<AppState>,
     Extension(ctx): Extension<TenantContext>,

@@ -76,6 +76,10 @@ dashmap     = "6"
 # Runtime stats
 sysinfo = { version = "0.30", default-features = false }
 
+# OpenAPI / Swagger UI
+utoipa = { version = "4", features = ["axum_extras", "chrono", "uuid"] }
+utoipa-swagger-ui = { version = "7", features = ["axum"] }
+
 
 [dev-dependencies]
 tokio    = { version = "1", features = ["full", "test-util"] }

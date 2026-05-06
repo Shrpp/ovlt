@@ -21,12 +21,27 @@ use crate::{
 
 // ── Setup (protected) ────────────────────────────────────────────────────────
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct SetupResponse {
     pub secret: String,
     pub otpauth_uri: String,
 }
 
+#[utoipa::path(
+    post,
+    path = "/auth/mfa/setup",
+    tag = "auth",
+    responses(
+        (status = 200, description = "MFA setup initiated", body = SetupResponse),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("bearer_auth" = [])
+    ),
+    params(
+        ("X-Tenant-ID" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn mfa_setup(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
@@ -65,11 +80,27 @@ pub async fn mfa_setup(
 
 // ── Confirm (protected) ──────────────────────────────────────────────────────
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct ConfirmRequest {
     pub code: String,
 }
 
+#[utoipa::path(
+    post,
+    path = "/auth/mfa/confirm",
+    tag = "auth",
+    request_body = ConfirmRequest,
+    responses(
+        (status = 204, description = "MFA confirmed and activated"),
+        (status = 401, description = "Invalid TOTP code"),
+    ),
+    security(
+        ("bearer_auth" = [])
+    ),
+    params(
+        ("X-Tenant-ID" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn mfa_confirm(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
@@ -101,6 +132,22 @@ pub async fn mfa_confirm(
 
 // ── Disable (protected) ──────────────────────────────────────────────────────
 
+#[utoipa::path(
+    post,
+    path = "/auth/mfa/disable",
+    tag = "auth",
+    request_body = ConfirmRequest,
+    responses(
+        (status = 204, description = "MFA disabled"),
+        (status = 401, description = "Invalid TOTP code"),
+    ),
+    security(
+        ("bearer_auth" = [])
+    ),
+    params(
+        ("X-Tenant-ID" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn mfa_disable(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
@@ -132,12 +179,25 @@ pub async fn mfa_disable(
 
 // ── Challenge (public, requires mfa_token) ───────────────────────────────────
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct ChallengeRequest {
     pub mfa_token: String,
     pub code: String,
 }
 
+#[utoipa::path(
+    post,
+    path = "/auth/mfa/challenge",
+    tag = "auth",
+    request_body = ChallengeRequest,
+    responses(
+        (status = 200, description = "MFA verified, tokens issued", body = crate::handlers::login::TokenResponse),
+        (status = 401, description = "Invalid MFA token or TOTP code"),
+    ),
+    params(
+        ("X-Tenant-ID" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn mfa_challenge(
     State(state): State<AppState>,
     Extension(ctx): Extension<TenantContext>,
@@ -259,6 +319,22 @@ fn extract_tenant_id(headers: &HeaderMap) -> Result<Uuid, AppError> {
         .ok_or_else(|| AppError::InvalidInput("x-ovlt-tenant-id header required".into()))
 }
 
+#[utoipa::path(
+    delete,
+    path = "/users/{id}/mfa",
+    tag = "admin-users",
+    responses(
+        (status = 204, description = "MFA disabled for user"),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("admin_key" = [])
+    ),
+    params(
+        ("id" = String, Path, description = "User UUID"),
+        ("X-Tenant-ID" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn admin_disable_mfa(
     State(state): State<AppState>,
     headers: HeaderMap,

@@ -17,7 +17,7 @@ use crate::{
     state::AppState,
 };
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct VerificationCodeResponse {
     pub otp: String,
     pub expires_in_hours: u32,
@@ -31,7 +31,7 @@ fn extract_tenant_id(headers: &HeaderMap) -> Result<Uuid, AppError> {
         .ok_or_else(|| AppError::InvalidInput("x-ovlt-tenant-id header required".into()))
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct UserResponse {
     pub id: String,
     pub email: String,
@@ -41,7 +41,7 @@ pub struct UserResponse {
     pub created_at: String,
 }
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate, utoipa::ToSchema)]
 pub struct CreateUserRequest {
     #[validate(email)]
     pub email: String,
@@ -49,6 +49,21 @@ pub struct CreateUserRequest {
     pub password: String,
 }
 
+#[utoipa::path(
+    get,
+    path = "/users",
+    tag = "admin-users",
+    responses(
+        (status = 200, description = "List of users", body = Vec<UserResponse>),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("admin_key" = [])
+    ),
+    params(
+        ("X-Ovlt-Tenant-Id" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn list_users(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -93,6 +108,23 @@ pub async fn list_users(
     Ok(Json(response))
 }
 
+#[utoipa::path(
+    post,
+    path = "/users",
+    tag = "admin-users",
+    request_body = CreateUserRequest,
+    responses(
+        (status = 201, description = "User created", body = UserResponse),
+        (status = 409, description = "Email already exists"),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("admin_key" = [])
+    ),
+    params(
+        ("X-Ovlt-Tenant-Id" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn create_user(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -160,7 +192,7 @@ pub async fn create_user(
     ))
 }
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate, utoipa::ToSchema)]
 pub struct UpdateUserRequest {
     #[validate(email)]
     pub email: Option<String>,
@@ -169,6 +201,24 @@ pub struct UpdateUserRequest {
     pub is_active: bool,
 }
 
+#[utoipa::path(
+    put,
+    path = "/users/{id}",
+    tag = "admin-users",
+    request_body = UpdateUserRequest,
+    responses(
+        (status = 204, description = "User updated"),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "User not found"),
+    ),
+    security(
+        ("admin_key" = [])
+    ),
+    params(
+        ("id" = String, Path, description = "User UUID"),
+        ("X-Ovlt-Tenant-Id" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn update_user(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -219,6 +269,22 @@ pub async fn update_user(
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[utoipa::path(
+    delete,
+    path = "/users/{id}",
+    tag = "admin-users",
+    responses(
+        (status = 204, description = "User deactivated"),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("admin_key" = [])
+    ),
+    params(
+        ("id" = String, Path, description = "User UUID"),
+        ("X-Ovlt-Tenant-Id" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn deactivate_user(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -239,6 +305,22 @@ pub async fn deactivate_user(
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[utoipa::path(
+    get,
+    path = "/users/{id}/verification-code",
+    tag = "admin-users",
+    responses(
+        (status = 200, description = "Email verification OTP", body = VerificationCodeResponse),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("admin_key" = [])
+    ),
+    params(
+        ("id" = String, Path, description = "User UUID"),
+        ("X-Ovlt-Tenant-Id" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn get_verification_code(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -261,12 +343,28 @@ pub async fn get_verification_code(
     }))
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct PasswordResetTokenResponse {
     pub token: String,
     pub expires_in_minutes: i64,
 }
 
+#[utoipa::path(
+    get,
+    path = "/users/{id}/password-reset-token",
+    tag = "admin-users",
+    responses(
+        (status = 200, description = "Password reset token", body = PasswordResetTokenResponse),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("admin_key" = [])
+    ),
+    params(
+        ("id" = String, Path, description = "User UUID"),
+        ("X-Ovlt-Tenant-Id" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn get_password_reset_token(
     State(state): State<AppState>,
     headers: HeaderMap,
