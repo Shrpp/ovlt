@@ -937,6 +937,90 @@ impl Client {
             .await?;
         self.check(resp).await
     }
+
+    pub async fn get_smtp(&self, tenant_id: &str) -> ApiResult<SmtpConfigResponse> {
+        let resp = self
+            .inner
+            .get(format!("{}/admin/smtp", self.base_url))
+            .headers(self.tenant_headers(tenant_id))
+            .send()
+            .await?;
+        self.check(resp).await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn put_smtp(
+        &self,
+        tenant_id: &str,
+        host: &str,
+        port: i32,
+        username: &str,
+        password: Option<&str>,
+        from_name: &str,
+        from_email: &str,
+        use_tls: bool,
+        enabled: bool,
+    ) -> ApiResult<serde_json::Value> {
+        let mut body = serde_json::json!({
+            "host": host,
+            "port": port,
+            "username": username,
+            "from_name": from_name,
+            "from_email": from_email,
+            "use_tls": use_tls,
+            "enabled": enabled,
+        });
+        if let Some(pw) = password {
+            if !pw.is_empty() {
+                body["password"] = serde_json::json!(pw);
+            }
+        }
+        let resp = self
+            .inner
+            .put(format!("{}/admin/smtp", self.base_url))
+            .headers(self.tenant_headers(tenant_id))
+            .json(&body)
+            .send()
+            .await?;
+        self.check(resp).await
+    }
+
+    pub async fn list_user_passkeys(
+        &self,
+        tenant_id: &str,
+        user_id: &str,
+    ) -> ApiResult<Vec<PasskeyInfo>> {
+        let resp = self
+            .inner
+            .get(format!("{}/admin/users/{user_id}/passkeys", self.base_url))
+            .headers(self.tenant_headers(tenant_id))
+            .send()
+            .await?;
+        self.check(resp).await
+    }
+
+    pub async fn delete_user_passkey(
+        &self,
+        tenant_id: &str,
+        user_id: &str,
+        credential_id: &str,
+    ) -> ApiResult<()> {
+        let resp = self
+            .inner
+            .delete(format!(
+                "{}/admin/users/{user_id}/passkeys/{credential_id}",
+                self.base_url
+            ))
+            .headers(self.tenant_headers(tenant_id))
+            .send()
+            .await?;
+        if resp.status().is_success() {
+            Ok(())
+        } else {
+            let _ = self.check::<serde_json::Value>(resp).await?;
+            Ok(())
+        }
+    }
 }
 
 // ── Response DTOs ─────────────────────────────────────────────────────────────
@@ -1048,6 +1132,28 @@ pub struct TokenTtlResponse {
 pub struct RegistrationPolicyResponse {
     pub allow_public_registration: bool,
     pub require_email_verified: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct SmtpConfigResponse {
+    pub host: String,
+    pub port: i32,
+    pub username: String,
+    pub password_set: bool,
+    pub from_name: String,
+    pub from_email: String,
+    pub use_tls: bool,
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct PasskeyInfo {
+    pub credential_id: String,
+    pub name: String,
+    pub aaguid: Option<String>,
+    pub sign_count: i32,
+    pub created_at: String,
+    pub last_used_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

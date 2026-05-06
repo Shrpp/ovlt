@@ -19,10 +19,12 @@ use ovlt_core::{
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde_json::json;
 use std::net::SocketAddr;
+use std::sync::Arc;
 use sysinfo::{Pid, System};
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+use webauthn_rs::prelude::{Url, WebauthnBuilder};
 
 #[tokio::main]
 async fn main() {
@@ -72,7 +74,26 @@ async fn main() {
         .flatten()
         .map(|t| t.id);
 
-    let state = AppState::new(db.clone(), config.clone(), jwk, master_tenant_id);
+    let rp_origin = Url::parse(&config.ovlt_issuer).unwrap_or_else(|_| {
+        eprintln!("OVLT_ISSUER is not a valid URL");
+        std::process::exit(1);
+    });
+    let rp_id = rp_origin.host_str().unwrap_or("localhost").to_string();
+    let webauthn = Arc::new(
+        WebauthnBuilder::new(&rp_id, &rp_origin)
+            .unwrap_or_else(|e| {
+                eprintln!("WebAuthn init error: {e}");
+                std::process::exit(1);
+            })
+            .rp_name("OVLT")
+            .build()
+            .unwrap_or_else(|e| {
+                eprintln!("WebAuthn build error: {e}");
+                std::process::exit(1);
+            }),
+    );
+
+    let state = AppState::new(db.clone(), config.clone(), jwk, master_tenant_id, webauthn);
 
     // Background cleanup every 6 hours
     tokio::spawn(async move {
@@ -151,6 +172,8 @@ fn build_router(state: AppState) -> Router {
         .merge(routes::admin_roles::router())
         .merge(routes::admin_permissions::router())
         .merge(routes::admin_identity_providers::router())
+        .merge(routes::admin_smtp::router())
+        .merge(routes::admin_webauthn::router())
         .merge(routes::audit_log::router());
 
     let well_known_router = Router::new()

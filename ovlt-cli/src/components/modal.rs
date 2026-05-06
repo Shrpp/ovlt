@@ -111,12 +111,15 @@ pub fn render_edit_user(
     is_active: bool,
     all_roles: &[(String, String, bool)],
     permissions: &[String],
+    passkeys: &[crate::api::PasskeyInfo],
     field: usize,
     role_selected: usize,
+    passkey_selected: usize,
 ) {
     let roles_visible = all_roles.len().clamp(1, 5) as u16;
     let perms_visible = permissions.len().clamp(1, 4) as u16;
-    let height = 3 + 3 + 2 + 1 + roles_visible + 1 + 1 + perms_visible + 1 + 2;
+    let pk_visible = passkeys.len().clamp(1, 3) as u16;
+    let height = 3 + 3 + 2 + 1 + roles_visible + 1 + perms_visible + 1 + pk_visible + 1 + 2;
     let area = centered_rect(66, height, frame.area());
     frame.render_widget(Clear, area);
 
@@ -141,6 +144,8 @@ pub fn render_edit_user(
         Constraint::Length(roles_visible), // roles list
         Constraint::Length(1),             // permissions header
         Constraint::Length(perms_visible), // permissions
+        Constraint::Length(1),             // passkeys header
+        Constraint::Length(pk_visible),    // passkeys list
         Constraint::Length(1),             // hint
     ];
     let chunks = Layout::default()
@@ -288,18 +293,81 @@ pub fn render_edit_user(
     let mut dummy_state2 = ListState::default();
     frame.render_stateful_widget(List::new(perm_items), chunks[6], &mut dummy_state2);
 
+    // Passkeys header
+    let pk_active = field == 4;
+    let pk_label = if pk_active {
+        "── Passkeys [d=delete] ──"
+    } else {
+        "── Passkeys ──"
+    };
+    frame.render_widget(
+        Paragraph::new(Span::styled(
+            pk_label,
+            Style::default().fg(if pk_active {
+                Color::Cyan
+            } else {
+                Color::DarkGray
+            }),
+        )),
+        chunks[7],
+    );
+
+    // Passkeys list
+    let pk_items: Vec<ListItem> = if passkeys.is_empty() {
+        vec![ListItem::new(Span::styled(
+            "  (none registered)",
+            Style::default().fg(Color::DarkGray),
+        ))]
+    } else {
+        let visible_start = passkey_selected.saturating_sub(pk_visible.saturating_sub(1) as usize);
+        passkeys
+            .iter()
+            .enumerate()
+            .skip(visible_start)
+            .take(pk_visible as usize)
+            .map(|(i, pk)| {
+                let is_sel = pk_active && i == passkey_selected;
+                let last = pk
+                    .last_used_at
+                    .as_deref()
+                    .map(|s| &s[..10])
+                    .unwrap_or("never");
+                let bg = if is_sel {
+                    Color::DarkGray
+                } else {
+                    Color::Reset
+                };
+                ListItem::new(Line::from(vec![
+                    Span::styled(
+                        if is_sel { "▶ " } else { "  " },
+                        Style::default().fg(Color::Cyan),
+                    ),
+                    Span::styled(pk.name.as_str(), Style::default().fg(Color::White).bg(bg)),
+                    Span::styled(
+                        format!("  last: {last}"),
+                        Style::default().fg(Color::DarkGray).bg(bg),
+                    ),
+                ]))
+            })
+            .collect()
+    };
+    let mut dummy_pk = ListState::default();
+    frame.render_stateful_widget(List::new(pk_items), chunks[8], &mut dummy_pk);
+
     // Hints
     let hints = Line::from(vec![
         Span::styled("Tab", Style::default().fg(Color::Cyan)),
         Span::styled(" Section  ", Style::default().fg(Color::DarkGray)),
         Span::styled("Enter", Style::default().fg(Color::Cyan)),
         Span::styled(" Save  ", Style::default().fg(Color::DarkGray)),
+        Span::styled("d", Style::default().fg(Color::Cyan)),
+        Span::styled(" Del passkey  ", Style::default().fg(Color::DarkGray)),
         Span::styled("Esc", Style::default().fg(Color::Cyan)),
         Span::styled(" Cancel", Style::default().fg(Color::DarkGray)),
     ]);
     frame.render_widget(
         Paragraph::new(hints).alignment(Alignment::Center),
-        chunks[7],
+        chunks[9],
     );
 }
 

@@ -8,7 +8,13 @@ use ratatui::{
 
 use crate::app::{App, SettingsState};
 
-const SECTIONS: &[&str] = &["Password Policy", "Lockout", "Tokens", "Registration"];
+const SECTIONS: &[&str] = &[
+    "Password Policy",
+    "Lockout",
+    "Tokens",
+    "Registration",
+    "SMTP",
+];
 
 pub fn render(frame: &mut Frame, app: &App, area: Rect) {
     let s = &app.settings;
@@ -48,6 +54,7 @@ pub fn render(frame: &mut Frame, app: &App, area: Rect) {
             1 => render_lockout(frame, s, layout[2]),
             2 => render_tokens(frame, s, layout[2]),
             3 => render_registration(frame, s, layout[2]),
+            4 => render_smtp(frame, s, layout[2]),
             _ => {}
         }
     } else {
@@ -268,4 +275,59 @@ fn render_registration(frame: &mut Frame, s: &SettingsState, area: Rect) {
         chunks[1],
     );
     frame.render_widget(hints(), chunks[3]);
+}
+
+fn render_smtp(frame: &mut Frame, s: &SettingsState, area: Rect) {
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3), // host
+            Constraint::Length(3), // port
+            Constraint::Length(3), // username
+            Constraint::Length(3), // password
+            Constraint::Length(3), // from_name
+            Constraint::Length(3), // from_email
+            Constraint::Length(1), // use_tls
+            Constraint::Length(1), // enabled
+            Constraint::Min(1),
+            Constraint::Length(1), // hints
+        ])
+        .split(area);
+
+    frame.render_widget(text_field("Host", &s.smtp_host, s.field == 0), chunks[0]);
+    frame.render_widget(text_field("Port", &s.smtp_port, s.field == 1), chunks[1]);
+    frame.render_widget(
+        text_field("Username", &s.smtp_username, s.field == 2),
+        chunks[2],
+    );
+
+    let pw_display = if s.field == 3 {
+        format!("{}█", "•".repeat(s.smtp_password.len()))
+    } else if s.smtp_password.is_empty() && s.smtp_password_set {
+        "(configured — leave blank to keep)".to_string()
+    } else {
+        "•".repeat(s.smtp_password.len())
+    };
+    frame.render_widget(
+        Paragraph::new(pw_display).block(field_block("Password", s.field == 3)),
+        chunks[3],
+    );
+
+    frame.render_widget(
+        text_field("From Name", &s.smtp_from_name, s.field == 4),
+        chunks[4],
+    );
+    frame.render_widget(
+        text_field("From Email", &s.smtp_from_email, s.field == 5),
+        chunks[5],
+    );
+    frame.render_widget(
+        toggle_line("STARTTLS", s.smtp_use_tls, s.field == 6),
+        chunks[6],
+    );
+    frame.render_widget(
+        toggle_line("Enabled", s.smtp_enabled, s.field == 7),
+        chunks[7],
+    );
+    frame.render_widget(hints(), chunks[9]);
 }

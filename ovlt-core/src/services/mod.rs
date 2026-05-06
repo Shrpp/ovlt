@@ -1,6 +1,7 @@
 pub mod audit_service;
 pub mod bootstrap_service;
 pub mod client_service;
+pub mod email_service;
 pub mod identity_provider_service;
 pub mod jwk_service;
 pub mod lockout_service;
@@ -16,3 +17,4 @@ pub mod tenant_service;
 pub mod tenant_settings_service;
 pub mod token_service;
 pub mod user_service;
+pub mod webauthn_service;

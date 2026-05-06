@@ -1,5 +1,5 @@
 use ratatui::{
-    layout::{Constraint, Direction, Layout, Rect},
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Tabs},
@@ -14,7 +14,7 @@ pub fn split_areas(frame: &Frame) -> (Rect, Rect, Rect, Rect) {
     let outer = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),
+            Constraint::Length(3), // 1-line header + 2 borders
             Constraint::Min(0),
             Constraint::Length(1),
         ])
@@ -38,6 +38,26 @@ pub fn split_content(area: Rect) -> (Rect, Rect) {
 }
 
 pub fn render_header(frame: &mut Frame, app: &App, area: Rect) {
+    let block = Block::default().borders(Borders::ALL);
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    let brand = Paragraph::new(Line::from(vec![
+        Span::styled(
+            "ovlt",
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            "/",
+            Style::default()
+                .fg(Color::Rgb(0, 255, 255))
+                .add_modifier(Modifier::BOLD),
+        ),
+    ]));
+    frame.render_widget(brand, inner);
+
     let connected = app.health_status.as_deref().unwrap_or("connecting…");
     let dot_color = if app.health_error.is_some() {
         Color::Red
@@ -46,21 +66,12 @@ pub fn render_header(frame: &mut Frame, app: &App, area: Rect) {
     } else {
         Color::Yellow
     };
-    let text = Line::from(vec![
-        Span::styled(
-            " OVLT Admin ",
-            Style::default()
-                .fg(Color::Cyan)
-                .add_modifier(Modifier::BOLD),
-        ),
-        Span::raw("│ "),
-        Span::styled(&app.client.base_url, Style::default().fg(Color::White)),
-        Span::raw("  "),
+    let status = Paragraph::new(Line::from(vec![
         Span::styled("● ", Style::default().fg(dot_color)),
         Span::styled(connected, Style::default().fg(dot_color)),
-    ]);
-    let header = Paragraph::new(text).block(Block::default().borders(Borders::ALL));
-    frame.render_widget(header, area);
+    ]))
+    .alignment(Alignment::Right);
+    frame.render_widget(status, inner);
 }
 
 pub fn render_tenant_sidebar(frame: &mut Frame, app: &App, area: Rect) {

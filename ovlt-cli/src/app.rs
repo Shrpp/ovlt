@@ -1,5 +1,6 @@
 use crate::api::{
-    AuditLogEntry, Client, IdentityProvider, OAuthClient, Permission, Role, Session, Tenant, User,
+    AuditLogEntry, Client, IdentityProvider, OAuthClient, PasskeyInfo, Permission, Role, Session,
+    Tenant, User,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -50,8 +51,18 @@ pub struct SettingsState {
     // Section 3 — Registration
     pub allow_public_registration: bool,
     pub require_email_verified: bool,
+    // Section 4 — SMTP
+    pub smtp_host: String,
+    pub smtp_port: String,
+    pub smtp_username: String,
+    pub smtp_password: String,
+    pub smtp_from_name: String,
+    pub smtp_from_email: String,
+    pub smtp_use_tls: bool,
+    pub smtp_enabled: bool,
+    pub smtp_password_set: bool,
     // UI
-    pub section: u8,   // 0=policy, 1=lockout, 2=tokens, 3=registration
+    pub section: u8,   // 0=policy, 1=lockout, 2=tokens, 3=registration, 4=smtp
     pub entered: bool, // true = inside Settings (Tier 2), false = hovering from main tabs
     pub field: usize,
     pub loading: bool,
@@ -71,6 +82,15 @@ impl Default for SettingsState {
             refresh_token_ttl_days: String::from("30"),
             allow_public_registration: true,
             require_email_verified: false,
+            smtp_host: String::new(),
+            smtp_port: String::from("587"),
+            smtp_username: String::new(),
+            smtp_password: String::new(),
+            smtp_from_name: String::new(),
+            smtp_from_email: String::new(),
+            smtp_use_tls: true,
+            smtp_enabled: false,
+            smtp_password_set: false,
             section: 0,
             entered: false,
             field: 0,
@@ -198,8 +218,10 @@ pub enum Modal {
         is_active: bool,
         all_roles: Vec<(String, String, bool)>, // (id, name, assigned)
         permissions: Vec<String>,               // derived from assigned roles, read-only
-        field: usize,                           // 0=email, 1=password, 2=is_active, 3=roles section
+        passkeys: Vec<PasskeyInfo>,             // 'd' to delete
+        field: usize, // 0=email, 1=password, 2=is_active, 3=roles, 4=passkeys
         role_selected: usize,
+        passkey_selected: usize,
     },
     CreateRole {
         name: String,

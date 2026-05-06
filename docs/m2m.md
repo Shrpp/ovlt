@@ -143,17 +143,19 @@ echo "eyJ..." | cut -d. -f2 | base64 -d 2>/dev/null | jq
 
 ## Flow diagram
 
-```
-Service                         OVLT
-  │                               │
-  │  POST /oauth/token             │
-  │  grant_type=client_credentials│
-  │ ─────────────────────────────>│
-  │                               │ verify secret, load roles
-  │       access_token (JWT)      │
-  │ <─────────────────────────────│
-  │                               │
-  │  downstream API call          │
-  │  Authorization: Bearer <jwt>  │
-  │ ─────────────────────────────>│ verify RS256 via JWKS
+```mermaid
+sequenceDiagram
+    participant S as Service
+    participant O as OVLT
+    participant D as Downstream API
+
+    S->>O: POST /oauth/token<br/>grant_type=client_credentials<br/>client_id + client_secret
+    O->>O: Verify secret · load assigned roles
+    O-->>S: { access_token (RS256 JWT), expires_in }
+
+    S->>D: GET /resource<br/>Authorization: Bearer &lt;jwt&gt;
+    D->>O: GET /.well-known/jwks.json
+    O-->>D: public keys
+    D->>D: Verify RS256 · check roles
+    D-->>S: 200 OK
 ```

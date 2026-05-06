@@ -12,7 +12,10 @@ use crate::{
     db,
     error::AppError,
     middleware::tenant::TenantContext,
-    services::{audit_service, password_policy_service, tenant_settings_service, user_service},
+    services::{
+        audit_service, email_service, one_time_token_service, password_policy_service,
+        tenant_settings_service, user_service,
+    },
     state::AppState,
 };
 
@@ -86,6 +89,30 @@ pub async fn register(
         Some(addr.ip().to_string()),
         None,
     );
+
+    if settings.require_email_verified {
+        let otp = one_time_token_service::generate_otp();
+        one_time_token_service::store_otp(&state.db, ctx.tenant_id, user.id, &otp, 24).await?;
+
+        let html = format!(
+            "<p>Welcome! Your email verification code is:</p>\
+             <p style=\"font-size:2em;letter-spacing:0.3em\"><strong>{otp}</strong></p>\
+             <p>This code expires in 24 hours.</p>"
+        );
+        let text = format!("Your email verification code: {otp}\nExpires in 24 hours.");
+
+        email_service::try_send(
+            &state.db,
+            ctx.tenant_id,
+            &ctx.tenant_key,
+            &state.config.master_encryption_key,
+            &email_normalized,
+            "Verify your email",
+            &html,
+            &text,
+        )
+        .await;
+    }
 
     Ok((
         StatusCode::CREATED,

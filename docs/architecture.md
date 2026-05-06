@@ -7,23 +7,21 @@ description: How ovlt-core is structured — multi-tenancy, encryption, token mo
 
 OVLT is a single Rust binary (`ovlt-core`) built on Axum. It exposes three logical API surfaces over one HTTP server:
 
-```
-┌─────────────────────────────────────────────────────┐
-│                    ovlt-core (Axum)                  │
-│                                                     │
-│  ┌──────────┐  ┌──────────┐  ┌────────────────┐    │
-│  │ Auth API │  │ Admin API│  │ OIDC/OAuth 2.0 │    │
-│  └────┬─────┘  └────┬─────┘  └───────┬────────┘    │
-│       │              │                │             │
-│  ┌────▼──────────────▼────────────────▼──────────┐  │
-│  │              SeaORM + PostgreSQL               │  │
-│  │         (Row-Level Security per tenant)        │  │
-│  └────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    TUI["ovlt TUI"] -->|HTTP| CORE
 
-┌─────────────────┐
-│   ovlt (TUI)    │  — connects via HTTP API
-└─────────────────┘
+    subgraph CORE["ovlt-core (Axum)"]
+        AUTH["Auth API\n/auth/*"]
+        ADMIN["Admin API\n/admin/*"]
+        OIDC["OIDC / OAuth 2.0\n/oauth/* · /.well-known/*"]
+    end
+
+    AUTH --> DB
+    ADMIN --> DB
+    OIDC --> DB
+
+    DB[("PostgreSQL\n(RLS per tenant)")]
 ```
 
 ## Multi-tenancy
@@ -31,6 +29,20 @@ OVLT is a single Rust binary (`ovlt-core`) built on Axum. It exposes three logic
 Each tenant is a row in the `tenants` table. Every data table (`users`, `clients`, `roles`, `sessions`, etc.) has a `tenant_id` column.
 
 **PostgreSQL Row-Level Security (RLS)** enforces isolation at the database level, not the application level:
+
+```mermaid
+sequenceDiagram
+    participant MW as tenant_middleware
+    participant DB as PostgreSQL (ovlt_rls role)
+    participant RLS as RLS policy
+
+    MW->>DB: SET LOCAL app.tenant_id = '<uuid>'
+    DB->>DB: BEGIN transaction
+    Note over DB,RLS: Every query filtered by RLS
+    DB->>RLS: USING (tenant_id = current_setting('app.tenant_id')::uuid)
+    RLS-->>DB: rows for this tenant only
+    DB-->>MW: result
+```
 
 1. The application connects as role `ovlt_rls` (not a superuser)
 2. On every request the middleware executes: `SET LOCAL app.tenant_id = '<uuid>'`
@@ -43,27 +55,22 @@ Each tenant is a row in the `tenants` table. Every data table (`users`, `clients
 
 ## Encryption model
 
-OVLT uses **double-envelope AES-256-GCM** for sensitive fields (TOTP secrets, token seeds):
+OVLT uses **double-envelope AES-256-GCM** for sensitive fields (emails, TOTP secrets, SMTP passwords):
 
-```
-plaintext
-   │
-   ▼  AES-256-GCM with tenant_data_key
-ciphertext_level1
-   │
-   ▼  AES-256-GCM with wrapped_tenant_key
-ciphertext_level2  ← stored in DB
-```
+```mermaid
+flowchart TD
+    MEK["MASTER_ENCRYPTION_KEY\n(env var — never stored)"]
+    TWK["TENANT_WRAP_KEY\n(env var — never stored)"]
+    WTK["wrapped_tenant_key\n(stored encrypted in tenants table)"]
+    TDK["tenant_data_key\n(in-memory only, derived per request)"]
+    CF["per-field ciphertext\n(stored in DB)"]
+    PT["plaintext"]
 
-**Key hierarchy:**
-
-```
-MASTER_ENCRYPTION_KEY  (env var — never stored)
-   └─ derives ──▶ wrapped_tenant_key  (stored encrypted in tenants table)
-                       └─ unwraps ──▶ tenant_data_key  (in-memory only)
-                                           └─ encrypts ──▶ per-field ciphertext
-
-TENANT_WRAP_KEY  (env var — second envelope layer, separate from MASTER_ENCRYPTION_KEY)
+    MEK -->|"AES-256-GCM\nenvelope 1"| WTK
+    TWK -->|"AES-256-GCM\nenvelope 2"| WTK
+    WTK -->|unwrap| TDK
+    TDK -->|"AES-256-GCM\nencrypt"| CF
+    PT -->|input| TDK
 ```
 
 <Warning>
@@ -95,20 +102,18 @@ TENANT_WRAP_KEY  (env var — second envelope layer, separate from MASTER_ENCRYP
 
 Every HTTP request passes through this middleware stack in order:
 
-```
-HTTP request
-   │
-   ▼  security_headers_middleware   HSTS, CSP, X-Frame-Options, etc.
-   │
-   ▼  CORS layer
-   │
-   ▼  tenant_middleware             reads X-Tenant-Slug → SET LOCAL app.tenant_id
-   │
-   ▼  rate_limit_middleware         per-IP sliding window
-   │
-   ▼  auth_middleware               validates Bearer token, extracts claims
-   │
-   ▼  handler
+```mermaid
+flowchart TD
+    REQ(["HTTP request"])
+    SEC["security_headers_middleware\nHSTS · CSP · X-Frame-Options"]
+    CORS["CORS layer"]
+    TENANT["tenant_middleware\nX-Tenant-ID → SET LOCAL app.tenant_id"]
+    RATE["rate_limit_middleware\nper-IP sliding window"]
+    AUTH["auth_middleware\nvalidate Bearer token · extract claims"]
+    HANDLER["handler"]
+    RES(["HTTP response"])
+
+    REQ --> SEC --> CORS --> TENANT --> RATE --> AUTH --> HANDLER --> RES
 ```
 
 ## Background tasks

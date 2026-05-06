@@ -22,6 +22,8 @@ mod m20240101_000019_client_token_ttl;
 mod m20240101_000020_identity_providers;
 mod m20240101_000021_totp_secrets;
 mod m20240101_000022_rename_role;
+mod m20240101_000023_tenant_smtp_config;
+mod m20240101_000024_webauthn_credentials;
 
 pub struct Migrator;
 
@@ -51,6 +53,8 @@ impl MigratorTrait for Migrator {
             Box::new(m20240101_000020_identity_providers::Migration),
             Box::new(m20240101_000021_totp_secrets::Migration),
             Box::new(m20240101_000022_rename_role::Migration),
+            Box::new(m20240101_000023_tenant_smtp_config::Migration),
+            Box::new(m20240101_000024_webauthn_credentials::Migration),
         ]
     }
 }
