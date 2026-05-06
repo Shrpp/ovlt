@@ -48,6 +48,7 @@ pub async fn load_config(
 
 /// Best-effort send. Logs on failure but never propagates the error so callers
 /// can return 200 regardless of email delivery status.
+#[allow(clippy::too_many_arguments)]
 pub async fn try_send(
     db: &DatabaseConnection,
     tenant_id: Uuid,
