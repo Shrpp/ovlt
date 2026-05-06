@@ -16,15 +16,15 @@ use ovlt_core::{
     },
     state::AppState,
 };
-use std::sync::Arc;
-use webauthn_rs::prelude::{Url, WebauthnBuilder};
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde_json::json;
 use std::net::SocketAddr;
+use std::sync::Arc;
 use sysinfo::{Pid, System};
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+use webauthn_rs::prelude::{Url, WebauthnBuilder};
 
 #[tokio::main]
 async fn main() {
@@ -78,10 +78,7 @@ async fn main() {
         eprintln!("OVLT_ISSUER is not a valid URL");
         std::process::exit(1);
     });
-    let rp_id = rp_origin
-        .host_str()
-        .unwrap_or("localhost")
-        .to_string();
+    let rp_id = rp_origin.host_str().unwrap_or("localhost").to_string();
     let webauthn = Arc::new(
         WebauthnBuilder::new(&rp_id, &rp_origin)
             .unwrap_or_else(|e| {

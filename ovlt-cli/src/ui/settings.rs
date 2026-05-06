@@ -8,7 +8,13 @@ use ratatui::{
 
 use crate::app::{App, SettingsState};
 
-const SECTIONS: &[&str] = &["Password Policy", "Lockout", "Tokens", "Registration", "SMTP"];
+const SECTIONS: &[&str] = &[
+    "Password Policy",
+    "Lockout",
+    "Tokens",
+    "Registration",
+    "SMTP",
+];
 
 pub fn render(frame: &mut Frame, app: &App, area: Rect) {
     let s = &app.settings;
@@ -315,7 +321,10 @@ fn render_smtp(frame: &mut Frame, s: &SettingsState, area: Rect) {
         text_field("From Email", &s.smtp_from_email, s.field == 5),
         chunks[5],
     );
-    frame.render_widget(toggle_line("STARTTLS", s.smtp_use_tls, s.field == 6), chunks[6]);
+    frame.render_widget(
+        toggle_line("STARTTLS", s.smtp_use_tls, s.field == 6),
+        chunks[6],
+    );
     frame.render_widget(
         toggle_line("Enabled", s.smtp_enabled, s.field == 7),
         chunks[7],

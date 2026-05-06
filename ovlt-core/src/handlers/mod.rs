@@ -1,12 +1,12 @@
 pub mod admin_auth;
-pub mod admin_smtp;
-pub mod admin_webauthn;
 pub mod admin_identity_providers;
 pub mod admin_permissions;
 pub mod admin_roles;
 pub mod admin_sessions;
+pub mod admin_smtp;
 pub mod admin_tenant_settings;
 pub mod admin_users;
+pub mod admin_webauthn;
 pub mod audit_log;
 pub mod clients;
 pub mod forgot_password;

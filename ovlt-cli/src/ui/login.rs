@@ -50,8 +50,18 @@ pub fn render(frame: &mut Frame, app: &App) {
     let border_block = Block::default()
         .title(Line::from(vec![
             Span::raw(" "),
-            Span::styled("ovlt", Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
-            Span::styled("/", Style::default().fg(Color::Rgb(0, 255, 255)).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "ovlt",
+                Style::default()
+                    .fg(Color::White)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                "/",
+                Style::default()
+                    .fg(Color::Rgb(0, 255, 255))
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw(" "),
         ]))
         .title_alignment(Alignment::Center)

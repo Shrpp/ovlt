@@ -1,9 +1,4 @@
-use axum::{
-    extract::State,
-    http::HeaderMap,
-    response::IntoResponse,
-    Json,
-};
+use axum::{extract::State, http::HeaderMap, response::IntoResponse, Json};
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 use serde::{Deserialize, Serialize};
@@ -11,10 +6,7 @@ use uuid::Uuid;
 use validator::Validate;
 
 use crate::{
-    entity::tenant_smtp_config,
-    error::AppError,
-    handlers::admin_auth,
-    services::tenant_service,
+    entity::tenant_smtp_config, error::AppError, handlers::admin_auth, services::tenant_service,
     state::AppState,
 };
 
@@ -103,8 +95,7 @@ pub async fn put_smtp(
     req.validate()
         .map_err(|e| AppError::InvalidInput(e.to_string()))?;
 
-    let tenant = tenant_service::find_active(&state.db, tenant_id)
-        .await?;
+    let tenant = tenant_service::find_active(&state.db, tenant_id).await?;
     let tenant_key = hefesto::decrypt(
         &tenant.encryption_key_encrypted,
         &state.config.tenant_wrap_key,
@@ -125,7 +116,9 @@ pub async fn put_smtp(
     } else if let Some(ref rec) = existing {
         rec.password_enc.clone()
     } else {
-        return Err(AppError::InvalidInput("password is required for initial setup".into()));
+        return Err(AppError::InvalidInput(
+            "password is required for initial setup".into(),
+        ));
     };
 
     if let Some(rec) = existing {

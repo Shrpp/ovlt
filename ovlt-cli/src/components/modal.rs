@@ -303,7 +303,11 @@ pub fn render_edit_user(
     frame.render_widget(
         Paragraph::new(Span::styled(
             pk_label,
-            Style::default().fg(if pk_active { Color::Cyan } else { Color::DarkGray }),
+            Style::default().fg(if pk_active {
+                Color::Cyan
+            } else {
+                Color::DarkGray
+            }),
         )),
         chunks[7],
     );
@@ -328,7 +332,11 @@ pub fn render_edit_user(
                     .as_deref()
                     .map(|s| &s[..10])
                     .unwrap_or("never");
-                let bg = if is_sel { Color::DarkGray } else { Color::Reset };
+                let bg = if is_sel {
+                    Color::DarkGray
+                } else {
+                    Color::Reset
+                };
                 ListItem::new(Line::from(vec![
                     Span::styled(
                         if is_sel { "▶ " } else { "  " },

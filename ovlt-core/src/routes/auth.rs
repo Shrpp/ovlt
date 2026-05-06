@@ -30,8 +30,14 @@ pub fn public_router() -> Router<AppState> {
         .route("/auth/reset-password", post(reset_password))
         .route("/auth/verify-otp", post(verify_email))
         .route("/auth/mfa/challenge", post(mfa_challenge))
-        .route("/auth/webauthn/authenticate/start", post(authenticate_start))
-        .route("/auth/webauthn/authenticate/finish", post(authenticate_finish))
+        .route(
+            "/auth/webauthn/authenticate/start",
+            post(authenticate_start),
+        )
+        .route(
+            "/auth/webauthn/authenticate/finish",
+            post(authenticate_finish),
+        )
         // OAuth authorize — tenant header required (client sets it)
         .route("/auth/:provider", get(authorize))
 }

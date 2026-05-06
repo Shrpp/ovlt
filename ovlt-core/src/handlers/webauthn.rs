@@ -9,8 +9,8 @@ use crate::{
     error::AppError,
     middleware::{auth::AuthUser, tenant::TenantContext},
     services::{
-        audit_service, permission_service, role_service, session_service,
-        tenant_settings_service, token_service, user_service, webauthn_service,
+        audit_service, permission_service, role_service, session_service, tenant_settings_service,
+        token_service, user_service, webauthn_service,
     },
     state::AppState,
 };
@@ -24,27 +24,29 @@ pub async fn register_start(
 ) -> Result<impl IntoResponse, AppError> {
     let txn = db::begin_tenant_txn(&state.db, ctx.tenant_id).await?;
 
-    let existing: Vec<_> = webauthn_service::list_passkeys_for_user(&txn, ctx.tenant_id, auth.user_id)
-        .await?
-        .into_iter()
-        .map(|p| p.cred_id().clone())
-        .collect();
+    let existing: Vec<_> =
+        webauthn_service::list_passkeys_for_user(&txn, ctx.tenant_id, auth.user_id)
+            .await?
+            .into_iter()
+            .map(|p| p.cred_id().clone())
+            .collect();
 
     txn.commit().await?;
 
-    let exclude = if existing.is_empty() { None } else { Some(existing) };
+    let exclude = if existing.is_empty() {
+        None
+    } else {
+        Some(existing)
+    };
 
     let (ccr, reg_state) = state
         .webauthn
-        .start_passkey_registration(
-            auth.user_id,
-            &auth.email,
-            &auth.email,
-            exclude,
-        )
+        .start_passkey_registration(auth.user_id, &auth.email, &auth.email, exclude)
         .map_err(|e| AppError::InvalidInput(e.to_string()))?;
 
-    state.reg_challenges.insert(auth.user_id.to_string(), reg_state);
+    state
+        .reg_challenges
+        .insert(auth.user_id.to_string(), reg_state);
 
     Ok(Json(ccr))
 }
@@ -65,7 +67,9 @@ pub async fn register_finish(
         .reg_challenges
         .remove(&auth.user_id.to_string())
         .map(|(_, v)| v)
-        .ok_or_else(|| AppError::InvalidInput("no pending registration — call /start first".into()))?;
+        .ok_or_else(|| {
+            AppError::InvalidInput("no pending registration — call /start first".into())
+        })?;
 
     let passkey = state
         .webauthn
@@ -106,7 +110,9 @@ pub async fn authenticate_start(
     txn.commit().await?;
 
     if passkeys.is_empty() {
-        return Err(AppError::InvalidInput("no passkeys registered for this user".into()));
+        return Err(AppError::InvalidInput(
+            "no passkeys registered for this user".into(),
+        ));
     }
 
     let (rcr, auth_state) = state
@@ -115,7 +121,9 @@ pub async fn authenticate_start(
         .map_err(|e| AppError::InvalidInput(e.to_string()))?;
 
     let token = Uuid::new_v4().to_string();
-    state.auth_challenges.insert(token.clone(), (auth_state, user.id));
+    state
+        .auth_challenges
+        .insert(token.clone(), (auth_state, user.id));
 
     Ok(Json(json!({
         "challenge": rcr,
@@ -169,7 +177,8 @@ pub async fn authenticate_finish(
 
     // Update passkey counter if needed
     if auth_result.needs_update() {
-        let mut passkeys = webauthn_service::list_passkeys_for_user(&txn, ctx.tenant_id, user_id).await?;
+        let mut passkeys =
+            webauthn_service::list_passkeys_for_user(&txn, ctx.tenant_id, user_id).await?;
         for pk in passkeys.iter_mut() {
             if pk.cred_id() == auth_result.cred_id() {
                 pk.update_credential(&auth_result);

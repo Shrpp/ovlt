@@ -1246,15 +1246,31 @@ async fn handle_key(app: &mut App, code: KeyCode, _mods: KeyModifiers) {
                     // Cycle: email(0) → password(1) → is_active(2) → roles(3) → passkeys(4) → email
                     field = (field + 1) % 5;
                     app.modal = Modal::EditUser {
-                        id, email, password, is_active, all_roles, permissions,
-                        passkeys, field, role_selected, passkey_selected,
+                        id,
+                        email,
+                        password,
+                        is_active,
+                        all_roles,
+                        permissions,
+                        passkeys,
+                        field,
+                        role_selected,
+                        passkey_selected,
                     };
                 }
                 KeyCode::Up if field == 3 => {
                     role_selected = role_selected.saturating_sub(1);
                     app.modal = Modal::EditUser {
-                        id, email, password, is_active, all_roles, permissions,
-                        passkeys, field, role_selected, passkey_selected,
+                        id,
+                        email,
+                        password,
+                        is_active,
+                        all_roles,
+                        permissions,
+                        passkeys,
+                        field,
+                        role_selected,
+                        passkey_selected,
                     };
                 }
                 KeyCode::Down if field == 3 => {
@@ -1262,15 +1278,31 @@ async fn handle_key(app: &mut App, code: KeyCode, _mods: KeyModifiers) {
                         role_selected += 1;
                     }
                     app.modal = Modal::EditUser {
-                        id, email, password, is_active, all_roles, permissions,
-                        passkeys, field, role_selected, passkey_selected,
+                        id,
+                        email,
+                        password,
+                        is_active,
+                        all_roles,
+                        permissions,
+                        passkeys,
+                        field,
+                        role_selected,
+                        passkey_selected,
                     };
                 }
                 KeyCode::Up if field == 4 => {
                     passkey_selected = passkey_selected.saturating_sub(1);
                     app.modal = Modal::EditUser {
-                        id, email, password, is_active, all_roles, permissions,
-                        passkeys, field, role_selected, passkey_selected,
+                        id,
+                        email,
+                        password,
+                        is_active,
+                        all_roles,
+                        permissions,
+                        passkeys,
+                        field,
+                        role_selected,
+                        passkey_selected,
                     };
                 }
                 KeyCode::Down if field == 4 => {
@@ -1278,8 +1310,16 @@ async fn handle_key(app: &mut App, code: KeyCode, _mods: KeyModifiers) {
                         passkey_selected += 1;
                     }
                     app.modal = Modal::EditUser {
-                        id, email, password, is_active, all_roles, permissions,
-                        passkeys, field, role_selected, passkey_selected,
+                        id,
+                        email,
+                        password,
+                        is_active,
+                        all_roles,
+                        permissions,
+                        passkeys,
+                        field,
+                        role_selected,
+                        passkey_selected,
                     };
                 }
                 KeyCode::Char('d') if field == 4 => {
@@ -1287,7 +1327,11 @@ async fn handle_key(app: &mut App, code: KeyCode, _mods: KeyModifiers) {
                         let cred_id = pk.credential_id.clone();
                         let user_id = id.clone();
                         if let Some(tid) = app.active_tenant_id.clone() {
-                            match app.client.delete_user_passkey(&tid, &user_id, &cred_id).await {
+                            match app
+                                .client
+                                .delete_user_passkey(&tid, &user_id, &cred_id)
+                                .await
+                            {
                                 Ok(_) => {
                                     passkeys.remove(passkey_selected);
                                     if passkey_selected > 0 && passkey_selected >= passkeys.len() {
@@ -1300,15 +1344,31 @@ async fn handle_key(app: &mut App, code: KeyCode, _mods: KeyModifiers) {
                         }
                     }
                     app.modal = Modal::EditUser {
-                        id, email, password, is_active, all_roles, permissions,
-                        passkeys, field, role_selected, passkey_selected,
+                        id,
+                        email,
+                        password,
+                        is_active,
+                        all_roles,
+                        permissions,
+                        passkeys,
+                        field,
+                        role_selected,
+                        passkey_selected,
                     };
                 }
                 KeyCode::Char(' ') if field == 2 => {
                     is_active = !is_active;
                     app.modal = Modal::EditUser {
-                        id, email, password, is_active, all_roles, permissions,
-                        passkeys, field, role_selected, passkey_selected,
+                        id,
+                        email,
+                        password,
+                        is_active,
+                        all_roles,
+                        permissions,
+                        passkeys,
+                        field,
+                        role_selected,
+                        passkey_selected,
                     };
                 }
                 KeyCode::Char(' ') if field == 3 => {
@@ -1316,14 +1376,26 @@ async fn handle_key(app: &mut App, code: KeyCode, _mods: KeyModifiers) {
                         entry.2 = !entry.2;
                     }
                     app.modal = Modal::EditUser {
-                        id, email, password, is_active, all_roles, permissions,
-                        passkeys, field, role_selected, passkey_selected,
+                        id,
+                        email,
+                        password,
+                        is_active,
+                        all_roles,
+                        permissions,
+                        passkeys,
+                        field,
+                        role_selected,
+                        passkey_selected,
                     };
                 }
                 KeyCode::Enter => {
                     let id2 = id.clone();
                     let e = email.clone();
-                    let pw = if password.is_empty() { None } else { Some(password.clone()) };
+                    let pw = if password.is_empty() {
+                        None
+                    } else {
+                        Some(password.clone())
+                    };
                     let roles = all_roles.clone();
                     app.modal = Modal::None;
                     perform_edit_user(app, id2, e, pw, is_active, roles).await;
@@ -1331,29 +1403,61 @@ async fn handle_key(app: &mut App, code: KeyCode, _mods: KeyModifiers) {
                 KeyCode::Backspace if field == 0 => {
                     email.pop();
                     app.modal = Modal::EditUser {
-                        id, email, password, is_active, all_roles, permissions,
-                        passkeys, field, role_selected, passkey_selected,
+                        id,
+                        email,
+                        password,
+                        is_active,
+                        all_roles,
+                        permissions,
+                        passkeys,
+                        field,
+                        role_selected,
+                        passkey_selected,
                     };
                 }
                 KeyCode::Backspace if field == 1 => {
                     password.pop();
                     app.modal = Modal::EditUser {
-                        id, email, password, is_active, all_roles, permissions,
-                        passkeys, field, role_selected, passkey_selected,
+                        id,
+                        email,
+                        password,
+                        is_active,
+                        all_roles,
+                        permissions,
+                        passkeys,
+                        field,
+                        role_selected,
+                        passkey_selected,
                     };
                 }
                 KeyCode::Char(c) if field == 0 => {
                     email.push(c);
                     app.modal = Modal::EditUser {
-                        id, email, password, is_active, all_roles, permissions,
-                        passkeys, field, role_selected, passkey_selected,
+                        id,
+                        email,
+                        password,
+                        is_active,
+                        all_roles,
+                        permissions,
+                        passkeys,
+                        field,
+                        role_selected,
+                        passkey_selected,
                     };
                 }
                 KeyCode::Char(c) if field == 1 => {
                     password.push(c);
                     app.modal = Modal::EditUser {
-                        id, email, password, is_active, all_roles, permissions,
-                        passkeys, field, role_selected, passkey_selected,
+                        id,
+                        email,
+                        password,
+                        is_active,
+                        all_roles,
+                        permissions,
+                        passkeys,
+                        field,
+                        role_selected,
+                        passkey_selected,
                     };
                 }
                 _ => {}
@@ -3242,8 +3346,8 @@ async fn save_settings_section(app: &mut App) {
                 .await
             {
                 Ok(_) => {
-                    app.settings.smtp_password_set = !app.settings.smtp_password.is_empty()
-                        || app.settings.smtp_password_set;
+                    app.settings.smtp_password_set =
+                        !app.settings.smtp_password.is_empty() || app.settings.smtp_password_set;
                     app.settings.smtp_password = String::new();
                     app.set_status("SMTP config saved");
                 }

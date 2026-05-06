@@ -219,7 +219,7 @@ pub enum Modal {
         all_roles: Vec<(String, String, bool)>, // (id, name, assigned)
         permissions: Vec<String>,               // derived from assigned roles, read-only
         passkeys: Vec<PasskeyInfo>,             // 'd' to delete
-        field: usize,                           // 0=email, 1=password, 2=is_active, 3=roles, 4=passkeys
+        field: usize, // 0=email, 1=password, 2=is_active, 3=roles, 4=passkeys
         role_selected: usize,
         passkey_selected: usize,
     },
