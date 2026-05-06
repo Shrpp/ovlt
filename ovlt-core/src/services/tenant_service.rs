@@ -28,6 +28,20 @@ pub async fn find_active(
     })
 }
 
+pub async fn list_all_active(db: &DatabaseConnection) -> Result<Vec<TenantRecord>, AppError> {
+    let tenants = tenants::Entity::find()
+        .filter(tenants::Column::IsActive.eq(true))
+        .all(db)
+        .await?;
+    Ok(tenants
+        .into_iter()
+        .map(|t| TenantRecord {
+            id: t.id,
+            encryption_key_encrypted: t.encryption_key,
+        })
+        .collect())
+}
+
 pub async fn find_active_by_slug(
     db: &DatabaseConnection,
     slug: &str,

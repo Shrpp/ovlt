@@ -1,17 +1,17 @@
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
-    style::{Color, Modifier, Style},
+    style::{Color, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph},
     Frame,
 };
 
-use crate::app::{App, SettingsState};
+use crate::app::App;
 
 const SECTIONS: &[&str] = &[
     "Password Policy",
     "Lockout",
-    "Tokens",
+    "Token TTL",
     "Registration",
     "SMTP",
 ];
@@ -19,15 +19,10 @@ const SECTIONS: &[&str] = &[
 pub fn render(frame: &mut Frame, app: &App, area: Rect) {
     let s = &app.settings;
 
-    let border_color = if s.entered {
-        Color::Cyan
-    } else {
-        Color::DarkGray
-    };
     let outer = Block::default()
         .title(" Settings ")
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(border_color));
+        .border_style(Style::default().fg(Color::Cyan));
     frame.render_widget(outer, area);
 
     let inner = Rect {
@@ -37,297 +32,44 @@ pub fn render(frame: &mut Frame, app: &App, area: Rect) {
         height: area.height.saturating_sub(2),
     };
 
-    let layout = Layout::default()
+    // Total rows: 1 blank + 5 sections + 1 blank + 1 hint
+    let section_count = SECTIONS.len();
+    let mut constraints = vec![Constraint::Length(1)]; // top padding
+    for _ in 0..section_count {
+        constraints.push(Constraint::Length(1));
+    }
+    constraints.push(Constraint::Min(0)); // spacer
+    constraints.push(Constraint::Length(1)); // hint
+
+    let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Min(0),
-        ])
+        .constraints(constraints)
         .split(inner);
 
-    render_section_tabs(frame, s, layout[0]);
-
-    if s.entered {
-        match s.section {
-            0 => render_policy(frame, s, layout[2]),
-            1 => render_lockout(frame, s, layout[2]),
-            2 => render_tokens(frame, s, layout[2]),
-            3 => render_registration(frame, s, layout[2]),
-            4 => render_smtp(frame, s, layout[2]),
-            _ => {}
-        }
-    } else {
-        // Not yet entered — show a hint to press Enter
-        let hint = Paragraph::new(Span::styled(
-            "Press Enter to edit settings",
-            Style::default().fg(Color::DarkGray),
-        ))
-        .alignment(Alignment::Center);
-        frame.render_widget(hint, layout[2]);
-    }
-}
-
-fn render_section_tabs(frame: &mut Frame, s: &SettingsState, area: Rect) {
-    let mut spans = vec![Span::raw("  ")];
     for (i, name) in SECTIONS.iter().enumerate() {
-        let idx = i as u8;
-        let style = if idx == s.section && s.entered {
-            Style::default()
-                .fg(Color::Black)
-                .bg(Color::Cyan)
-                .add_modifier(Modifier::BOLD)
-        } else if idx == s.section {
-            // Hovered but not entered
-            Style::default()
-                .fg(Color::White)
-                .add_modifier(Modifier::BOLD)
+        let is_sel = i == s.section_selected;
+        let (bullet, bullet_color) = if is_sel {
+            ("▶", Color::Cyan)
         } else {
-            Style::default().fg(Color::DarkGray)
+            ("○", Color::DarkGray)
         };
-        spans.push(Span::styled(format!(" {name} "), style));
-        spans.push(Span::raw("  "));
-    }
-    frame.render_widget(Paragraph::new(Line::from(spans)), area);
-}
-
-fn field_block(title: &str, active: bool) -> Block<'static> {
-    Block::default()
-        .title(title.to_string())
-        .borders(Borders::ALL)
-        .border_style(if active {
-            Style::default().fg(Color::Cyan)
+        let label_color = if is_sel {
+            Color::White
         } else {
-            Style::default().fg(Color::DarkGray)
-        })
-}
+            Color::DarkGray
+        };
+        let line = Line::from(vec![
+            Span::styled(format!("   {bullet} "), Style::default().fg(bullet_color)),
+            Span::styled(*name, Style::default().fg(label_color)),
+        ]);
+        frame.render_widget(Paragraph::new(line), chunks[i + 1]);
+    }
 
-fn text_field<'a>(label: &'static str, val: &str, active: bool) -> Paragraph<'a> {
-    let display = if active {
-        format!("{val}█")
-    } else {
-        val.to_string()
-    };
-    Paragraph::new(display).block(field_block(label, active))
-}
-
-fn toggle_line(label: &str, val: bool, focused: bool) -> Paragraph<'static> {
-    let (bullet, color) = if val {
-        ("●", Color::Cyan)
-    } else {
-        ("○", Color::DarkGray)
-    };
-    let bg = if focused {
-        Color::DarkGray
-    } else {
-        Color::Reset
-    };
-    Paragraph::new(Line::from(vec![
-        Span::styled(format!("{bullet} "), Style::default().fg(color)),
-        Span::styled(label.to_string(), Style::default().fg(Color::White).bg(bg)),
-        Span::styled("  [Space]", Style::default().fg(Color::DarkGray)),
-    ]))
-}
-
-fn hints<'a>() -> Paragraph<'a> {
-    Paragraph::new(Line::from(vec![
-        Span::styled("Tab", Style::default().fg(Color::Cyan)),
-        Span::styled(" Next   ", Style::default().fg(Color::DarkGray)),
-        Span::styled("Space", Style::default().fg(Color::Cyan)),
-        Span::styled(" Toggle   ", Style::default().fg(Color::DarkGray)),
-        Span::styled("Enter", Style::default().fg(Color::Cyan)),
-        Span::styled(" Save   ", Style::default().fg(Color::DarkGray)),
-        Span::styled("◄►", Style::default().fg(Color::Cyan)),
-        Span::styled(" Section   ", Style::default().fg(Color::DarkGray)),
-        Span::styled("Backspace", Style::default().fg(Color::Cyan)),
-        Span::styled(" Back", Style::default().fg(Color::DarkGray)),
-    ]))
-    .alignment(Alignment::Center)
-}
-
-fn render_policy(frame: &mut Frame, s: &SettingsState, area: Rect) {
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(3),
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Min(1),
-            Constraint::Length(1),
-        ])
-        .split(area);
-
-    frame.render_widget(
-        text_field("Min Length", &s.policy_min_length, s.field == 0),
-        chunks[0],
-    );
-    frame.render_widget(
-        toggle_line(
-            "Require Uppercase",
-            s.policy_require_uppercase,
-            s.field == 1,
-        ),
-        chunks[2],
-    );
-    frame.render_widget(
-        toggle_line("Require Digit", s.policy_require_digit, s.field == 2),
-        chunks[3],
-    );
-    frame.render_widget(
-        toggle_line(
-            "Require Special (!@#...)",
-            s.policy_require_special,
-            s.field == 3,
-        ),
-        chunks[4],
-    );
-    frame.render_widget(hints(), chunks[6]);
-}
-
-fn render_lockout(frame: &mut Frame, s: &SettingsState, area: Rect) {
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(3),
-            Constraint::Length(3),
-            Constraint::Length(3),
-            Constraint::Min(1),
-            Constraint::Length(1),
-        ])
-        .split(area);
-
-    frame.render_widget(
-        text_field("Max Attempts", &s.lockout_max_attempts, s.field == 0),
-        chunks[0],
-    );
-    frame.render_widget(
-        text_field("Window (minutes)", &s.lockout_window_minutes, s.field == 1),
-        chunks[1],
-    );
-    frame.render_widget(
-        text_field(
-            "Lockout Duration (minutes)",
-            &s.lockout_duration_minutes,
-            s.field == 2,
-        ),
-        chunks[2],
-    );
-    frame.render_widget(hints(), chunks[4]);
-}
-
-fn render_tokens(frame: &mut Frame, s: &SettingsState, area: Rect) {
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(3),
-            Constraint::Length(3),
-            Constraint::Min(1),
-            Constraint::Length(1),
-        ])
-        .split(area);
-
-    frame.render_widget(
-        text_field(
-            "Access Token TTL (minutes)",
-            &s.access_token_ttl_minutes,
-            s.field == 0,
-        ),
-        chunks[0],
-    );
-    frame.render_widget(
-        text_field(
-            "Refresh Token TTL (days)",
-            &s.refresh_token_ttl_days,
-            s.field == 1,
-        ),
-        chunks[1],
-    );
-    frame.render_widget(hints(), chunks[3]);
-}
-
-fn render_registration(frame: &mut Frame, s: &SettingsState, area: Rect) {
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Min(1),
-            Constraint::Length(1),
-        ])
-        .split(area);
-
-    frame.render_widget(
-        toggle_line(
-            "Allow Public Registration",
-            s.allow_public_registration,
-            s.field == 0,
-        ),
-        chunks[0],
-    );
-    frame.render_widget(
-        toggle_line(
-            "Require Email Verified to Login",
-            s.require_email_verified,
-            s.field == 1,
-        ),
-        chunks[1],
-    );
-    frame.render_widget(hints(), chunks[3]);
-}
-
-fn render_smtp(frame: &mut Frame, s: &SettingsState, area: Rect) {
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(3), // host
-            Constraint::Length(3), // port
-            Constraint::Length(3), // username
-            Constraint::Length(3), // password
-            Constraint::Length(3), // from_name
-            Constraint::Length(3), // from_email
-            Constraint::Length(1), // use_tls
-            Constraint::Length(1), // enabled
-            Constraint::Min(1),
-            Constraint::Length(1), // hints
-        ])
-        .split(area);
-
-    frame.render_widget(text_field("Host", &s.smtp_host, s.field == 0), chunks[0]);
-    frame.render_widget(text_field("Port", &s.smtp_port, s.field == 1), chunks[1]);
-    frame.render_widget(
-        text_field("Username", &s.smtp_username, s.field == 2),
-        chunks[2],
-    );
-
-    let pw_display = if s.field == 3 {
-        format!("{}█", "•".repeat(s.smtp_password.len()))
-    } else if s.smtp_password.is_empty() && s.smtp_password_set {
-        "(configured — leave blank to keep)".to_string()
-    } else {
-        "•".repeat(s.smtp_password.len())
-    };
-    frame.render_widget(
-        Paragraph::new(pw_display).block(field_block("Password", s.field == 3)),
-        chunks[3],
-    );
-
-    frame.render_widget(
-        text_field("From Name", &s.smtp_from_name, s.field == 4),
-        chunks[4],
-    );
-    frame.render_widget(
-        text_field("From Email", &s.smtp_from_email, s.field == 5),
-        chunks[5],
-    );
-    frame.render_widget(
-        toggle_line("STARTTLS", s.smtp_use_tls, s.field == 6),
-        chunks[6],
-    );
-    frame.render_widget(
-        toggle_line("Enabled", s.smtp_enabled, s.field == 7),
-        chunks[7],
-    );
-    frame.render_widget(hints(), chunks[9]);
+    let hint_idx = section_count + 2;
+    let hint = Paragraph::new(Span::styled(
+        "↑↓ Navigate   Enter Edit",
+        Style::default().fg(Color::DarkGray),
+    ))
+    .alignment(Alignment::Center);
+    frame.render_widget(hint, chunks[hint_idx]);
 }

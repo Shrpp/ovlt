@@ -47,7 +47,8 @@
         "pages": [
           "architecture",
           "security",
-          "admin-tui"
+          "admin-tui",
+          "database"
         ]
       },
       {

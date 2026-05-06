@@ -7,6 +7,7 @@ use crate::{
     handlers::{
         forgot_password::forgot_password,
         login::login,
+        login_universal::login_universal,
         logout::logout,
         mfa::{mfa_challenge, mfa_confirm, mfa_disable, mfa_setup},
         oauth::{authorize, callback},
@@ -57,4 +58,9 @@ pub fn protected_router() -> Router<AppState> {
 /// OAuth callbacks — no tenant header; tenant extracted from state param.
 pub fn callback_router() -> Router<AppState> {
     Router::new().route("/auth/:provider/callback", get(callback))
+}
+
+/// Universal login — no tenant header required; resolves tenant internally.
+pub fn universal_router() -> Router<AppState> {
+    Router::new().route("/auth/login/universal", post(login_universal))
 }

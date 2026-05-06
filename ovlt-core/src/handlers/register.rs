@@ -40,9 +40,24 @@ pub async fn register(
     Extension(ctx): Extension<TenantContext>,
     Json(payload): Json<RegisterRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    payload
-        .validate()
-        .map_err(|e| AppError::InvalidInput(e.to_string()))?;
+    if let Err(errs) = payload.validate() {
+        let fields: Vec<(String, String)> = errs
+            .field_errors()
+            .iter()
+            .map(|(field, errors)| {
+                let msg = match *field {
+                    "email" => "Enter a valid email address".to_string(),
+                    "password" => "Password must be at least 8 characters".to_string(),
+                    _ => errors
+                        .first()
+                        .and_then(|e| e.message.as_ref().map(|m| m.to_string()))
+                        .unwrap_or_else(|| "Invalid value".to_string()),
+                };
+                (field.to_string(), msg)
+            })
+            .collect();
+        return Err(AppError::Validation(fields));
+    }
 
     let settings = tenant_settings_service::get(&state.db, ctx.tenant_id).await?;
     if !settings.allow_public_registration {

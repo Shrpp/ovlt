@@ -151,6 +151,10 @@ fn build_router(state: AppState) -> Router {
             tenant_middleware,
         ));
 
+    let auth_universal = routes::auth::universal_router().layer(
+        axum::middleware::from_fn_with_state(state.clone(), rate_limit_middleware),
+    );
+
     let auth_protected = routes::auth::protected_router()
         .merge(routes::user::router())
         .merge(routes::settings::router())
@@ -187,6 +191,7 @@ fn build_router(state: AppState) -> Router {
 
     Router::new()
         .merge(public)
+        .merge(auth_universal)
         .merge(auth_public)
         .merge(auth_protected)
         .merge(oauth_callbacks)

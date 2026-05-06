@@ -8,10 +8,12 @@ pub enum AppMode {
     Login {
         email: String,
         password: String,
-        slug: String,    // currently selected slug
-        slug_idx: usize, // selected index in App::tenant_options (usize::MAX = custom text)
-        field: usize,    // 0=email, 1=password, 2=tenant picker
+        field: usize, // 0=email, 1=password
         error: Option<String>,
+        /// When the server returns multiple tenant matches, store them here
+        /// so the user can pick one before we do the final login.
+        tenant_choices: Option<Vec<(String, String)>>, // (slug, name)
+        tenant_choice_idx: usize,
     },
     MfaChallenge {
         mfa_token: String,
@@ -62,9 +64,8 @@ pub struct SettingsState {
     pub smtp_enabled: bool,
     pub smtp_password_set: bool,
     // UI
-    pub section: u8,   // 0=policy, 1=lockout, 2=tokens, 3=registration, 4=smtp
-    pub entered: bool, // true = inside Settings (Tier 2), false = hovering from main tabs
-    pub field: usize,
+    pub section_selected: usize, // 0-4, which section is highlighted in section list
+    pub modal_field: usize,      // active field index inside EditSettings modal
     pub loading: bool,
 }
 
@@ -91,9 +92,8 @@ impl Default for SettingsState {
             smtp_use_tls: true,
             smtp_enabled: false,
             smtp_password_set: false,
-            section: 0,
-            entered: false,
-            field: 0,
+            section_selected: 0,
+            modal_field: 0,
             loading: false,
         }
     }
@@ -253,6 +253,12 @@ pub enum Modal {
         all_roles: Vec<(String, String, bool)>,
         selected: usize,
     },
+    /// section: 0=PasswordPolicy, 1=Lockout, 2=Tokens, 3=Registration, 4=Smtp
+    EditSettings(u8),
+    PostCreateTenant {
+        tenant_id: String,
+        tenant_name: String,
+    },
 }
 
 pub struct App {
@@ -261,8 +267,6 @@ pub struct App {
     pub focus: Focus,
     pub tab: Tab,
     pub modal: Modal,
-
-    pub tenant_options: Vec<(String, String)>, // (slug, name) fetched before login
 
     pub tenants: Vec<Tenant>,
     pub tenant_selected: usize,
@@ -314,15 +318,14 @@ impl App {
             mode: AppMode::Login {
                 email: String::new(),
                 password: String::new(),
-                slug: String::from("master"),
-                slug_idx: 0,
                 field: 0,
                 error: None,
+                tenant_choices: None,
+                tenant_choice_idx: 0,
             },
             focus: Focus::Sidebar,
             tab: Tab::Clients,
             modal: Modal::None,
-            tenant_options: vec![],
 
             tenants: vec![],
             tenant_selected: 0,
