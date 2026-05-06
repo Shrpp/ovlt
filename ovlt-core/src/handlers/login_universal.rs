@@ -313,4 +313,3 @@ pub async fn login_universal(
     )
         .into_response())
 }
-

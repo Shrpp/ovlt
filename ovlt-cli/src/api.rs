@@ -83,18 +83,12 @@ impl Client {
                     .collect::<Vec<_>>()
                     .join("\n")
             } else {
-                match body
-                    .get("error")
-                    .and_then(|e| e.as_str())
-                    .unwrap_or("")
-                {
+                match body.get("error").and_then(|e| e.as_str()).unwrap_or("") {
                     "unauthorized" => match status.as_u16() {
                         401 => "Incorrect email or password".to_string(),
                         _ => "You don't have permission to perform this action".to_string(),
                     },
-                    "forbidden" => {
-                        "You don't have permission to perform this action".to_string()
-                    }
+                    "forbidden" => "You don't have permission to perform this action".to_string(),
                     "not_found" => "Not found".to_string(),
                     "already_exists" => "This already exists".to_string(),
                     "too_many_requests" => {

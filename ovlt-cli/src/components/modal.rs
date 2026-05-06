@@ -1069,11 +1069,19 @@ pub fn render_settings_password_policy(
     let (blk, disp) = settings_text_field("Min Length", min_length, field == 0);
     frame.render_widget(Paragraph::new(disp).block(blk), chunks[0]);
     frame.render_widget(
-        Paragraph::new(settings_toggle_line("Require Uppercase", require_uppercase, field == 1)),
+        Paragraph::new(settings_toggle_line(
+            "Require Uppercase",
+            require_uppercase,
+            field == 1,
+        )),
         chunks[2],
     );
     frame.render_widget(
-        Paragraph::new(settings_toggle_line("Require Digit", require_digit, field == 2)),
+        Paragraph::new(settings_toggle_line(
+            "Require Digit",
+            require_digit,
+            field == 2,
+        )),
         chunks[3],
     );
     frame.render_widget(
@@ -1173,8 +1181,11 @@ pub fn render_settings_tokens(
         field == 0,
     );
     frame.render_widget(Paragraph::new(disp).block(blk), chunks[0]);
-    let (blk, disp) =
-        settings_text_field("Refresh Token TTL (days)", refresh_token_ttl_days, field == 1);
+    let (blk, disp) = settings_text_field(
+        "Refresh Token TTL (days)",
+        refresh_token_ttl_days,
+        field == 1,
+    );
     frame.render_widget(Paragraph::new(disp).block(blk), chunks[1]);
     frame.render_widget(
         Paragraph::new(settings_hint_line()).alignment(Alignment::Center),
@@ -1364,8 +1375,5 @@ pub fn render_post_create_tenant(frame: &mut Frame, tenant_name: &str) {
         Span::styled("Esc", Style::default().fg(Color::Cyan)),
         Span::styled("  Skip", Style::default().fg(Color::DarkGray)),
     ]);
-    frame.render_widget(
-        Paragraph::new(hint).alignment(Alignment::Center),
-        chunks[3],
-    );
+    frame.render_widget(Paragraph::new(hint).alignment(Alignment::Center), chunks[3]);
 }

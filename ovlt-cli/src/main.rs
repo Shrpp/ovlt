@@ -9,7 +9,12 @@ mod ui;
 use clap::{Parser, Subcommand};
 
 #[derive(Parser, Debug)]
-#[command(name = "ovlt", about = "OVLT — Developer-first Auth Service", version, arg_required_else_help = true)]
+#[command(
+    name = "ovlt",
+    about = "OVLT — Developer-first Auth Service",
+    version,
+    arg_required_else_help = true
+)]
 struct Cli {
     #[command(subcommand)]
     command: Command,

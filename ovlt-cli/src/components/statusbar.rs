@@ -17,18 +17,14 @@ pub fn render(frame: &mut Frame, app: &App, area: Rect) {
         (_, _, Modal::QuickStart(_)) => "Tab Next  Enter Continue  Esc Cancel",
         (_, _, Modal::PostCreateTenant { .. }) => "Enter Setup wizard  Esc Skip",
         (_, _, Modal::ShowSecret { .. }) | (_, _, Modal::Error(_)) => "Any Close",
-        (_, _, Modal::ClientRoles { .. }) => {
-            "↑↓ Navigate  Space Toggle  Enter Save  Esc Cancel"
-        }
+        (_, _, Modal::ClientRoles { .. }) => "↑↓ Navigate  Space Toggle  Enter Save  Esc Cancel",
         (_, _, Modal::None) => match &app.focus {
             Focus::Sidebar => "↑↓ Navigate  Enter Open  n New  r Refresh  q Quit",
             Focus::Content => match &app.tab {
                 Tab::Settings => "↑↓ Navigate  Enter Edit  r Refresh  Esc Back",
                 Tab::Sessions => "↑↓ Navigate  d Delete  r Refresh  Esc Back",
                 Tab::AuditLog => "↑↓ Navigate  r Refresh  Esc Back",
-                Tab::Users => {
-                    "↑↓ Navigate  n New  e Edit  d Deactivate  r Refresh  Esc Back"
-                }
+                Tab::Users => "↑↓ Navigate  n New  e Edit  d Deactivate  r Refresh  Esc Back",
                 Tab::Clients => {
                     "↑↓ Navigate  n New  e Edit  l Roles  d Delete  r Refresh  Esc Back"
                 }

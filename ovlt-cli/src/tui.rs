@@ -439,7 +439,10 @@ async fn handle_login_key(app: &mut App, code: KeyCode) {
     };
 
     // When tenant_choices is shown, Up/Down navigates the list; Enter picks one.
-    let has_choices = tenant_choices.as_ref().map(|c| !c.is_empty()).unwrap_or(false);
+    let has_choices = tenant_choices
+        .as_ref()
+        .map(|c| !c.is_empty())
+        .unwrap_or(false);
 
     match code {
         KeyCode::Char('q') => {
@@ -573,14 +576,7 @@ async fn handle_login_key(app: &mut App, code: KeyCode) {
                     app.mode = mk_mode(email, password, field, None, Some(choices), 0);
                 }
                 Err(e) => {
-                    app.mode = mk_mode(
-                        email,
-                        password,
-                        field,
-                        Some(format!("{e}")),
-                        None,
-                        0,
-                    );
+                    app.mode = mk_mode(email, password, field, Some(format!("{e}")), None, 0);
                 }
             }
         }
@@ -1696,7 +1692,10 @@ async fn handle_key(app: &mut App, code: KeyCode, _mods: KeyModifiers) {
             handle_edit_settings_key(app, code, section).await;
             return;
         }
-        Modal::PostCreateTenant { tenant_id, tenant_name } => {
+        Modal::PostCreateTenant {
+            tenant_id,
+            tenant_name,
+        } => {
             match code {
                 KeyCode::Enter => {
                     let tid = tenant_id.clone();
@@ -3184,18 +3183,42 @@ async fn handle_edit_settings_key(app: &mut App, code: KeyCode, section: u8) {
         KeyCode::Backspace if !is_toggle => {
             let s = &mut app.settings;
             match (section, s.modal_field) {
-                (0, 0) => { s.policy_min_length.pop(); }
-                (1, 0) => { s.lockout_max_attempts.pop(); }
-                (1, 1) => { s.lockout_window_minutes.pop(); }
-                (1, 2) => { s.lockout_duration_minutes.pop(); }
-                (2, 0) => { s.access_token_ttl_minutes.pop(); }
-                (2, 1) => { s.refresh_token_ttl_days.pop(); }
-                (4, 0) => { s.smtp_host.pop(); }
-                (4, 1) => { s.smtp_port.pop(); }
-                (4, 2) => { s.smtp_username.pop(); }
-                (4, 3) => { s.smtp_password.pop(); }
-                (4, 4) => { s.smtp_from_name.pop(); }
-                (4, 5) => { s.smtp_from_email.pop(); }
+                (0, 0) => {
+                    s.policy_min_length.pop();
+                }
+                (1, 0) => {
+                    s.lockout_max_attempts.pop();
+                }
+                (1, 1) => {
+                    s.lockout_window_minutes.pop();
+                }
+                (1, 2) => {
+                    s.lockout_duration_minutes.pop();
+                }
+                (2, 0) => {
+                    s.access_token_ttl_minutes.pop();
+                }
+                (2, 1) => {
+                    s.refresh_token_ttl_days.pop();
+                }
+                (4, 0) => {
+                    s.smtp_host.pop();
+                }
+                (4, 1) => {
+                    s.smtp_port.pop();
+                }
+                (4, 2) => {
+                    s.smtp_username.pop();
+                }
+                (4, 3) => {
+                    s.smtp_password.pop();
+                }
+                (4, 4) => {
+                    s.smtp_from_name.pop();
+                }
+                (4, 5) => {
+                    s.smtp_from_email.pop();
+                }
                 _ => {}
             }
         }
@@ -3236,9 +3259,16 @@ async fn handle_edit_settings_key(app: &mut App, code: KeyCode, section: u8) {
                     let uu = app.settings.policy_require_uppercase;
                     let dd = app.settings.policy_require_digit;
                     let ss = app.settings.policy_require_special;
-                    match app.client.put_password_policy(&tid, min_len, uu, dd, ss).await {
+                    match app
+                        .client
+                        .put_password_policy(&tid, min_len, uu, dd, ss)
+                        .await
+                    {
                         Ok(_) => app.set_status("Password policy saved"),
-                        Err(e) => { app.modal = Modal::Error(format!("{e}")); return; }
+                        Err(e) => {
+                            app.modal = Modal::Error(format!("{e}"));
+                            return;
+                        }
                     }
                 }
                 1 => {
@@ -3247,7 +3277,10 @@ async fn handle_edit_settings_key(app: &mut App, code: KeyCode, section: u8) {
                     let dur: i32 = app.settings.lockout_duration_minutes.parse().unwrap_or(15);
                     match app.client.put_lockout_policy(&tid, max_att, win, dur).await {
                         Ok(_) => app.set_status("Lockout policy saved"),
-                        Err(e) => { app.modal = Modal::Error(format!("{e}")); return; }
+                        Err(e) => {
+                            app.modal = Modal::Error(format!("{e}"));
+                            return;
+                        }
                     }
                 }
                 2 => {
@@ -3255,15 +3288,25 @@ async fn handle_edit_settings_key(app: &mut App, code: KeyCode, section: u8) {
                     let ref_days: i32 = app.settings.refresh_token_ttl_days.parse().unwrap_or(30);
                     match app.client.put_token_ttl(&tid, acc, ref_days).await {
                         Ok(_) => app.set_status("Token TTL saved"),
-                        Err(e) => { app.modal = Modal::Error(format!("{e}")); return; }
+                        Err(e) => {
+                            app.modal = Modal::Error(format!("{e}"));
+                            return;
+                        }
                     }
                 }
                 3 => {
                     let allow = app.settings.allow_public_registration;
                     let require = app.settings.require_email_verified;
-                    match app.client.put_registration_policy(&tid, allow, require).await {
+                    match app
+                        .client
+                        .put_registration_policy(&tid, allow, require)
+                        .await
+                    {
                         Ok(_) => app.set_status("Registration policy saved"),
-                        Err(e) => { app.modal = Modal::Error(format!("{e}")); return; }
+                        Err(e) => {
+                            app.modal = Modal::Error(format!("{e}"));
+                            return;
+                        }
                     }
                 }
                 4 => {
@@ -3279,14 +3322,31 @@ async fn handle_edit_settings_key(app: &mut App, code: KeyCode, section: u8) {
                     let femail = app.settings.smtp_from_email.clone();
                     let use_tls = app.settings.smtp_use_tls;
                     let smtp_enabled = app.settings.smtp_enabled;
-                    match app.client.put_smtp(&tid, &host, port, &uname, pw, &fname, &femail, use_tls, smtp_enabled).await {
+                    match app
+                        .client
+                        .put_smtp(
+                            &tid,
+                            &host,
+                            port,
+                            &uname,
+                            pw,
+                            &fname,
+                            &femail,
+                            use_tls,
+                            smtp_enabled,
+                        )
+                        .await
+                    {
                         Ok(_) => {
-                            app.settings.smtp_password_set =
-                                !app.settings.smtp_password.is_empty() || app.settings.smtp_password_set;
+                            app.settings.smtp_password_set = !app.settings.smtp_password.is_empty()
+                                || app.settings.smtp_password_set;
                             app.settings.smtp_password = String::new();
                             app.set_status("SMTP config saved");
                         }
-                        Err(e) => { app.modal = Modal::Error(format!("{e}")); return; }
+                        Err(e) => {
+                            app.modal = Modal::Error(format!("{e}"));
+                            return;
+                        }
                     }
                 }
                 _ => {}
@@ -3341,4 +3401,3 @@ async fn load_settings(app: &mut App, tid: String) {
     }
     app.settings.loading = false;
 }
-
