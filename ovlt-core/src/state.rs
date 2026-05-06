@@ -1,3 +1,4 @@
+use dashmap::DashMap;
 use sea_orm::DatabaseConnection;
 use std::{
     collections::HashMap,
@@ -5,6 +6,7 @@ use std::{
     time::Instant,
 };
 use uuid::Uuid;
+use webauthn_rs::prelude::{PasskeyAuthentication, PasskeyRegistration, Webauthn};
 
 use crate::{config::Config, services::jwk_service::JwkService};
 
@@ -16,8 +18,13 @@ pub struct AppState {
     pub config: Config,
     pub jwk: Arc<JwkService>,
     pub rate_limiter: RateLimiterStore,
-    /// UUID of the master tenant, resolved at startup. Used to verify admin Bearer tokens.
     pub master_tenant_id: Option<Uuid>,
+    pub webauthn: Arc<Webauthn>,
+    /// Pending passkey registration challenges, keyed by user_id string.
+    pub reg_challenges: Arc<DashMap<String, PasskeyRegistration>>,
+    /// Pending passkey authentication challenges, keyed by random challenge token.
+    /// Value: (auth_state, user_id)
+    pub auth_challenges: Arc<DashMap<String, (PasskeyAuthentication, Uuid)>>,
 }
 
 impl AppState {
@@ -26,6 +33,7 @@ impl AppState {
         config: Config,
         jwk: JwkService,
         master_tenant_id: Option<Uuid>,
+        webauthn: Arc<Webauthn>,
     ) -> Self {
         Self {
             db,
@@ -33,6 +41,9 @@ impl AppState {
             jwk: Arc::new(jwk),
             rate_limiter: Arc::new(Mutex::new(HashMap::new())),
             master_tenant_id,
+            webauthn,
+            reg_challenges: Arc::new(DashMap::new()),
+            auth_challenges: Arc::new(DashMap::new()),
         }
     }
 }

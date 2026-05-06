@@ -983,6 +983,43 @@ impl Client {
             .await?;
         self.check(resp).await
     }
+
+    pub async fn list_user_passkeys(
+        &self,
+        tenant_id: &str,
+        user_id: &str,
+    ) -> ApiResult<Vec<PasskeyInfo>> {
+        let resp = self
+            .inner
+            .get(format!("{}/admin/users/{user_id}/passkeys", self.base_url))
+            .headers(self.tenant_headers(tenant_id))
+            .send()
+            .await?;
+        self.check(resp).await
+    }
+
+    pub async fn delete_user_passkey(
+        &self,
+        tenant_id: &str,
+        user_id: &str,
+        credential_id: &str,
+    ) -> ApiResult<()> {
+        let resp = self
+            .inner
+            .delete(format!(
+                "{}/admin/users/{user_id}/passkeys/{credential_id}",
+                self.base_url
+            ))
+            .headers(self.tenant_headers(tenant_id))
+            .send()
+            .await?;
+        if resp.status().is_success() {
+            Ok(())
+        } else {
+            let _ = self.check::<serde_json::Value>(resp).await?;
+            Ok(())
+        }
+    }
 }
 
 // ── Response DTOs ─────────────────────────────────────────────────────────────
@@ -1106,6 +1143,16 @@ pub struct SmtpConfigResponse {
     pub from_email: String,
     pub use_tls: bool,
     pub enabled: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct PasskeyInfo {
+    pub credential_id: String,
+    pub name: String,
+    pub aaguid: Option<String>,
+    pub sign_count: i32,
+    pub created_at: String,
+    pub last_used_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

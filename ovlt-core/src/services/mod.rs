@@ -17,3 +17,4 @@ pub mod tenant_service;
 pub mod tenant_settings_service;
 pub mod token_service;
 pub mod user_service;
+pub mod webauthn_service;

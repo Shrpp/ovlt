@@ -1,5 +1,6 @@
 pub mod admin_auth;
 pub mod admin_smtp;
+pub mod admin_webauthn;
 pub mod admin_identity_providers;
 pub mod admin_permissions;
 pub mod admin_roles;
@@ -22,4 +23,5 @@ pub mod reset_password;
 pub mod revoke;
 pub mod tenants;
 pub mod verify_email;
+pub mod webauthn;
 pub mod well_known;

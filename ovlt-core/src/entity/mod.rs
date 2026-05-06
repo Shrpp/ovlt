@@ -18,5 +18,6 @@ pub mod tenant_settings;
 pub mod tenant_smtp_config;
 pub mod tenants;
 pub mod totp_secrets;
+pub mod webauthn_credential;
 pub mod user_roles;
 pub mod users;

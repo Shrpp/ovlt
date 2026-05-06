@@ -5,6 +5,36 @@ description: Set up and manage TOTP-based two-factor authentication for users.
 
 OVLT supports TOTP-based MFA (RFC 6238) — compatible with Google Authenticator, Authy, 1Password, and any standard TOTP app. The TOTP secret is stored encrypted at rest (AES-256-GCM double-envelope).
 
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant A as Authenticator App
+    participant C as Your App
+    participant O as OVLT
+
+    rect rgb(30, 40, 60)
+        Note over U,O: Setup (one-time)
+        C->>O: POST /auth/mfa/setup (JWT)
+        O-->>C: { secret, qr_code }
+        C-->>U: Show QR code
+        U->>A: Scan QR code
+        U->>C: Enter first 6-digit code
+        C->>O: POST /auth/mfa/confirm { totp_code }
+        O-->>C: { enabled: true }
+    end
+
+    rect rgb(30, 60, 40)
+        Note over U,O: Login with MFA active
+        C->>O: POST /auth/login { email, password }
+        O-->>C: { mfa_required: true, mfa_token }
+        C-->>U: Prompt for TOTP code
+        U->>A: Read 6-digit code
+        U->>C: Submit code
+        C->>O: POST /auth/mfa/challenge { mfa_token, totp_code }
+        O-->>C: { access_token, refresh_token }
+    end
+```
+
 ## User setup flow
 
 <Steps>

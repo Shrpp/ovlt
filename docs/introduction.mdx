@@ -38,14 +38,20 @@ docker run -p 3000:3000 \
   <Card title="Zero-knowledge encryption" icon="shield">
     AES-256-GCM double-envelope at rest via hefesto — the server never sees plaintext credentials
   </Card>
-  <Card title="MFA" icon="mobile">
-    TOTP support for authenticator apps (Authy, Google Authenticator, etc.)
+  <Card title="MFA — TOTP" icon="mobile">
+    TOTP support for authenticator apps (Authy, Google Authenticator, 1Password, etc.)
+  </Card>
+  <Card title="Passkeys (WebAuthn)" icon="fingerprint">
+    FIDO2/WebAuthn passkey registration and authentication — phishing-resistant, no password needed
   </Card>
   <Card title="Social login" icon="globe">
-    Google and GitHub OAuth2 out of the box
+    Google and GitHub OAuth2 — per-tenant provider credentials via the IdP tab or admin API
+  </Card>
+  <Card title="Per-tenant SMTP" icon="envelope">
+    Send verification and password-reset emails from your own mail provider, configured per tenant
   </Card>
   <Card title="Admin TUI" icon="terminal">
-    Terminal UI to manage tenants, users, clients, roles, and permissions
+    Full-featured terminal UI — manage tenants, users, clients, roles, permissions, passkeys, SMTP, and IdPs
   </Card>
 </CardGroup>
 
@@ -59,6 +65,8 @@ docker run -p 3000:3000 \
 | Zero-knowledge enc. | ✅ | ❌ | ❌ | ❌ |
 | No external deps | ✅ | ❌ | ❌ (Redis) | ❌ |
 | PKCE required | ✅ | Optional | Optional | Optional |
+| Passkeys (WebAuthn) | ✅ | ✅ | ✅ | ✅ |
+| Per-tenant SMTP | ✅ | ✅ | ✅ | ✅ |
 | Runs on $6 VPS | ✅ | ❌ | ❌ | ⚠️ |
 
 ## Next steps
@@ -67,13 +75,13 @@ docker run -p 3000:3000 \
   <Card title="Getting Started" icon="rocket" href="/getting-started">
     Run OVLT, first login, create a tenant
   </Card>
-  <Card title="API Reference" icon="rectangle-terminal" href="/api-reference">
-    All HTTP endpoints
+  <Card title="Admin TUI" icon="terminal" href="/admin-tui">
+    Full keyboard reference for the terminal UI
   </Card>
   <Card title="Architecture" icon="sitemap" href="/architecture">
     Multi-tenancy, RLS, encryption model
   </Card>
-  <Card title="Security" icon="shield-halved" href="/security">
-    Security model, threat model, hardening
+  <Card title="API Reference" icon="rectangle-terminal" href="/api-reference">
+    All HTTP endpoints
   </Card>
 </CardGroup>

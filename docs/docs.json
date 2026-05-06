@@ -33,12 +33,20 @@
         ]
       },
       {
+        "group": "Features",
+        "pages": [
+          "mfa",
+          "webauthn",
+          "smtp",
+          "social-login",
+          "m2m"
+        ]
+      },
+      {
         "group": "Guides",
         "pages": [
           "architecture",
           "security",
-          "m2m",
-          "mfa",
           "admin-tui"
         ]
       },

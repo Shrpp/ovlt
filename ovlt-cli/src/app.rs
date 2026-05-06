@@ -1,5 +1,6 @@
 use crate::api::{
-    AuditLogEntry, Client, IdentityProvider, OAuthClient, Permission, Role, Session, Tenant, User,
+    AuditLogEntry, Client, IdentityProvider, OAuthClient, PasskeyInfo, Permission, Role, Session,
+    Tenant, User,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -217,8 +218,10 @@ pub enum Modal {
         is_active: bool,
         all_roles: Vec<(String, String, bool)>, // (id, name, assigned)
         permissions: Vec<String>,               // derived from assigned roles, read-only
-        field: usize,                           // 0=email, 1=password, 2=is_active, 3=roles section
+        passkeys: Vec<PasskeyInfo>,             // 'd' to delete
+        field: usize,                           // 0=email, 1=password, 2=is_active, 3=roles, 4=passkeys
         role_selected: usize,
+        passkey_selected: usize,
     },
     CreateRole {
         name: String,
