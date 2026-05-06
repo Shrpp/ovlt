@@ -42,7 +42,11 @@ pub async fn auth_middleware(
         Uuid::parse_str(&claims.tid).map_err(|_| AppError::TokenError("invalid tid".into()))?;
 
     if let Some(ctx) = req.extensions().get::<TenantContext>() {
-        if token_tenant_id != ctx.tenant_id {
+        let is_master_admin = state
+            .master_tenant_id
+            .map(|mid| token_tenant_id == mid)
+            .unwrap_or(false);
+        if !is_master_admin && token_tenant_id != ctx.tenant_id {
             return Err(AppError::Unauthorized);
         }
     }

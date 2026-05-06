@@ -948,6 +948,7 @@ impl Client {
         self.check(resp).await
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn put_smtp(
         &self,
         tenant_id: &str,
