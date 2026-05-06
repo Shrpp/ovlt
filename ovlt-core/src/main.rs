@@ -10,8 +10,7 @@ use ovlt_core::{
         security::{rate_limit_middleware, security_headers_middleware},
         tenant::tenant_middleware,
     },
-    openapi,
-    routes,
+    openapi, routes,
     services::{
         bootstrap_service, jwk_service::JwkService, lockout_service, session_service, token_service,
     },

@@ -31,14 +31,19 @@ use crate::{
         login::{LoginRequest, MfaRequiredResponse, TokenResponse},
         logout::LogoutRequest,
         mfa::{ChallengeRequest, ConfirmRequest, SetupResponse},
-        oauth_as::{AuthorizeParams, IntrospectRequest, TokenRequest, TokenResponse as OauthTokenResponse},
+        oauth_as::{
+            AuthorizeParams, IntrospectRequest, TokenRequest, TokenResponse as OauthTokenResponse,
+        },
         oauth_revoke::RevokeRequest,
         refresh::RefreshRequest,
         register::{RegisterRequest, RegisterResponse},
         reset_password::ResetPasswordRequest,
         tenants::{CreateTenantRequest, TenantResponse, TenantSlugEntry},
         verify_email::VerifyOtpRequest,
-        webauthn::{AuthFinishPayload, AuthStartPayload, RegisterFinishPayload, TokenResponse as WebauthnTokenResponse},
+        webauthn::{
+            AuthFinishPayload, AuthStartPayload, RegisterFinishPayload,
+            TokenResponse as WebauthnTokenResponse,
+        },
     },
     state::AppState,
 };
