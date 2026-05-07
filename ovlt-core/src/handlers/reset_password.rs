@@ -12,13 +12,27 @@ use crate::{
     state::AppState,
 };
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate, utoipa::ToSchema)]
 pub struct ResetPasswordRequest {
     pub token: String,
     #[validate(length(min = 1, max = 128))]
     pub new_password: String,
 }
 
+#[utoipa::path(
+    post,
+    path = "/auth/reset-password",
+    tag = "auth",
+    request_body = ResetPasswordRequest,
+    responses(
+        (status = 200, description = "Password reset successfully"),
+        (status = 401, description = "Invalid or expired token"),
+        (status = 422, description = "Validation error"),
+    ),
+    params(
+        ("X-Tenant-ID" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn reset_password(
     State(state): State<AppState>,
     Extension(ctx): Extension<TenantContext>,

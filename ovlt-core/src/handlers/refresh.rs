@@ -11,11 +11,24 @@ use crate::{
 };
 use sea_orm::EntityTrait;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct RefreshRequest {
     pub refresh_token: String,
 }
 
+#[utoipa::path(
+    post,
+    path = "/auth/refresh",
+    tag = "auth",
+    request_body = RefreshRequest,
+    responses(
+        (status = 200, description = "Token refreshed", body = crate::handlers::login::TokenResponse),
+        (status = 401, description = "Invalid or expired refresh token"),
+    ),
+    params(
+        ("X-Tenant-ID" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn refresh(
     State(state): State<AppState>,
     Extension(ctx): Extension<TenantContext>,

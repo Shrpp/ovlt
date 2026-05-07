@@ -13,7 +13,7 @@ use crate::{
 
 const RESET_EXPIRY_MINUTES: i64 = 60;
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate, utoipa::ToSchema)]
 pub struct ForgotPasswordRequest {
     #[validate(email)]
     pub email: String,
@@ -23,6 +23,18 @@ pub struct ForgotPasswordRequest {
 /// Generates a reset token but does NOT deliver it.
 /// The developer retrieves the token via GET /admin/users/:id/password-reset-token
 /// and delivers it through their own channel.
+#[utoipa::path(
+    post,
+    path = "/auth/forgot-password",
+    tag = "auth",
+    request_body = ForgotPasswordRequest,
+    responses(
+        (status = 200, description = "Reset token generated (always 200 to prevent enumeration)"),
+    ),
+    params(
+        ("X-Tenant-ID" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn forgot_password(
     State(state): State<AppState>,
     Extension(ctx): Extension<TenantContext>,

@@ -17,6 +17,21 @@ use crate::{
 
 // ── Registration ─────────────────────────────────────────────────────────────
 
+#[utoipa::path(
+    post,
+    path = "/auth/webauthn/register/start",
+    tag = "auth",
+    responses(
+        (status = 200, description = "Registration challenge"),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("bearer_auth" = [])
+    ),
+    params(
+        ("X-Tenant-ID" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn register_start(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
@@ -51,12 +66,29 @@ pub async fn register_start(
     Ok(Json(ccr))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct RegisterFinishPayload {
+    #[schema(value_type = Object)]
     pub credential: RegisterPublicKeyCredential,
     pub name: Option<String>,
 }
 
+#[utoipa::path(
+    post,
+    path = "/auth/webauthn/register/finish",
+    tag = "auth",
+    request_body = RegisterFinishPayload,
+    responses(
+        (status = 200, description = "Passkey registered"),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("bearer_auth" = [])
+    ),
+    params(
+        ("X-Tenant-ID" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn register_finish(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
@@ -87,11 +119,24 @@ pub async fn register_finish(
 
 // ── Authentication ────────────────────────────────────────────────────────────
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct AuthStartPayload {
     pub email: String,
 }
 
+#[utoipa::path(
+    post,
+    path = "/auth/webauthn/authenticate/start",
+    tag = "auth",
+    request_body = AuthStartPayload,
+    responses(
+        (status = 200, description = "Authentication challenge"),
+        (status = 401, description = "No passkeys registered"),
+    ),
+    params(
+        ("X-Tenant-ID" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn authenticate_start(
     State(state): State<AppState>,
     Extension(ctx): Extension<TenantContext>,
@@ -131,19 +176,33 @@ pub async fn authenticate_start(
     })))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct AuthFinishPayload {
     pub token: String,
+    #[schema(value_type = Object)]
     pub credential: PublicKeyCredential,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct TokenResponse {
     pub access_token: String,
     pub refresh_token: String,
     pub expires_in: i64,
 }
 
+#[utoipa::path(
+    post,
+    path = "/auth/webauthn/authenticate/finish",
+    tag = "auth",
+    request_body = AuthFinishPayload,
+    responses(
+        (status = 200, description = "Authentication successful", body = TokenResponse),
+        (status = 401, description = "Authentication failed"),
+    ),
+    params(
+        ("X-Tenant-ID" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn authenticate_finish(
     State(state): State<AppState>,
     Extension(ctx): Extension<TenantContext>,

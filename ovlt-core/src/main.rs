@@ -10,7 +10,7 @@ use ovlt_core::{
         security::{rate_limit_middleware, security_headers_middleware},
         tenant::tenant_middleware,
     },
-    routes,
+    openapi, routes,
     services::{
         bootstrap_service, jwk_service::JwkService, lockout_service, session_service, token_service,
     },
@@ -193,6 +193,7 @@ fn build_router(state: AppState) -> Router {
         .merge(admin)
         .merge(well_known_router)
         .merge(oauth_as)
+        .merge(openapi::swagger_router())
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             security_headers_middleware,

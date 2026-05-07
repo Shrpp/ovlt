@@ -34,7 +34,7 @@ fn require_admin(state: &AppState, headers: &HeaderMap) -> Result<(), AppError> 
     .map(|_| ())
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct IdpResponse {
     pub id: String,
     pub provider: String,
@@ -45,7 +45,7 @@ pub struct IdpResponse {
     pub created_at: String,
 }
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate, utoipa::ToSchema)]
 pub struct CreateIdpRequest {
     #[validate(length(min = 1, max = 32))]
     pub provider: String,
@@ -58,7 +58,7 @@ pub struct CreateIdpRequest {
     pub scopes: Option<Vec<String>>,
 }
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate, utoipa::ToSchema)]
 pub struct UpdateIdpRequest {
     #[validate(length(min = 1))]
     pub client_id: String,
@@ -70,6 +70,21 @@ pub struct UpdateIdpRequest {
     pub enabled: Option<bool>,
 }
 
+#[utoipa::path(
+    get,
+    path = "/admin/identity-providers",
+    tag = "admin-idp",
+    responses(
+        (status = 200, description = "List of identity providers", body = Vec<IdpResponse>),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("admin_key" = [])
+    ),
+    params(
+        ("X-Ovlt-Tenant-Id" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn list_idps(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -97,6 +112,22 @@ pub async fn list_idps(
     Ok(Json(resp))
 }
 
+#[utoipa::path(
+    post,
+    path = "/admin/identity-providers",
+    tag = "admin-idp",
+    request_body = CreateIdpRequest,
+    responses(
+        (status = 201, description = "Identity provider created", body = IdpResponse),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("admin_key" = [])
+    ),
+    params(
+        ("X-Ovlt-Tenant-Id" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn create_idp(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -154,6 +185,24 @@ pub async fn create_idp(
     ))
 }
 
+#[utoipa::path(
+    put,
+    path = "/admin/identity-providers/{id}",
+    tag = "admin-idp",
+    request_body = UpdateIdpRequest,
+    responses(
+        (status = 200, description = "Identity provider updated", body = IdpResponse),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Provider not found"),
+    ),
+    security(
+        ("admin_key" = [])
+    ),
+    params(
+        ("id" = String, Path, description = "Identity provider UUID"),
+        ("X-Ovlt-Tenant-Id" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn update_idp(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -207,6 +256,22 @@ pub async fn update_idp(
     }))
 }
 
+#[utoipa::path(
+    delete,
+    path = "/admin/identity-providers/{id}",
+    tag = "admin-idp",
+    responses(
+        (status = 204, description = "Identity provider deleted"),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("admin_key" = [])
+    ),
+    params(
+        ("id" = String, Path, description = "Identity provider UUID"),
+        ("X-Ovlt-Tenant-Id" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn delete_idp(
     State(state): State<AppState>,
     headers: HeaderMap,

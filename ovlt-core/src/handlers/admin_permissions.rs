@@ -30,7 +30,7 @@ fn require_admin(state: &AppState, headers: &HeaderMap) -> Result<(), AppError> 
     .map(|_| ())
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct PermissionResponse {
     pub id: String,
     pub name: String,
@@ -38,27 +38,42 @@ pub struct PermissionResponse {
     pub created_at: String,
 }
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate, utoipa::ToSchema)]
 pub struct CreatePermissionRequest {
     #[validate(length(min = 1, max = 64))]
     pub name: String,
     pub description: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate, utoipa::ToSchema)]
 pub struct UpdatePermissionRequest {
     #[validate(length(min = 1, max = 64))]
     pub name: String,
     pub description: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct AssignPermissionRequest {
     pub permission_id: String,
 }
 
 // ── Permissions CRUD ──────────────────────────────────────────────────────────
 
+#[utoipa::path(
+    get,
+    path = "/permissions",
+    tag = "admin-roles",
+    responses(
+        (status = 200, description = "List of permissions", body = Vec<PermissionResponse>),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("admin_key" = [])
+    ),
+    params(
+        ("X-Ovlt-Tenant-Id" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn list_permissions(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -83,6 +98,22 @@ pub async fn list_permissions(
     Ok(Json(resp))
 }
 
+#[utoipa::path(
+    post,
+    path = "/permissions",
+    tag = "admin-roles",
+    request_body = CreatePermissionRequest,
+    responses(
+        (status = 201, description = "Permission created", body = PermissionResponse),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("admin_key" = [])
+    ),
+    params(
+        ("X-Ovlt-Tenant-Id" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn create_permission(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -118,6 +149,23 @@ pub async fn create_permission(
     ))
 }
 
+#[utoipa::path(
+    put,
+    path = "/permissions/{id}",
+    tag = "admin-roles",
+    request_body = UpdatePermissionRequest,
+    responses(
+        (status = 204, description = "Permission updated"),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("admin_key" = [])
+    ),
+    params(
+        ("id" = String, Path, description = "Permission UUID"),
+        ("X-Ovlt-Tenant-Id" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn update_permission(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -144,6 +192,22 @@ pub async fn update_permission(
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[utoipa::path(
+    delete,
+    path = "/permissions/{id}",
+    tag = "admin-roles",
+    responses(
+        (status = 204, description = "Permission deleted"),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("admin_key" = [])
+    ),
+    params(
+        ("id" = String, Path, description = "Permission UUID"),
+        ("X-Ovlt-Tenant-Id" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn delete_permission(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -161,6 +225,22 @@ pub async fn delete_permission(
 
 // ── Role ↔ Permission ─────────────────────────────────────────────────────────
 
+#[utoipa::path(
+    get,
+    path = "/roles/{role_id}/permissions",
+    tag = "admin-roles",
+    responses(
+        (status = 200, description = "List of permissions for role", body = Vec<PermissionResponse>),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("admin_key" = [])
+    ),
+    params(
+        ("role_id" = String, Path, description = "Role UUID"),
+        ("X-Ovlt-Tenant-Id" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn list_role_permissions(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -186,6 +266,23 @@ pub async fn list_role_permissions(
     Ok(Json(resp))
 }
 
+#[utoipa::path(
+    post,
+    path = "/roles/{role_id}/permissions",
+    tag = "admin-roles",
+    request_body = AssignPermissionRequest,
+    responses(
+        (status = 204, description = "Permission assigned to role"),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("admin_key" = [])
+    ),
+    params(
+        ("role_id" = String, Path, description = "Role UUID"),
+        ("X-Ovlt-Tenant-Id" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn assign_role_permission(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -205,6 +302,23 @@ pub async fn assign_role_permission(
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[utoipa::path(
+    delete,
+    path = "/roles/{role_id}/permissions/{permission_id}",
+    tag = "admin-roles",
+    responses(
+        (status = 204, description = "Permission revoked from role"),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("admin_key" = [])
+    ),
+    params(
+        ("role_id" = String, Path, description = "Role UUID"),
+        ("permission_id" = String, Path, description = "Permission UUID"),
+        ("X-Ovlt-Tenant-Id" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn revoke_role_permission(
     State(state): State<AppState>,
     headers: HeaderMap,

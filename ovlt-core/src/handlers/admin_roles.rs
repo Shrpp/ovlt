@@ -28,7 +28,7 @@ fn require_admin(state: &AppState, headers: &HeaderMap) -> Result<(), AppError> 
     .map(|_| ())
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct RoleResponse {
     pub id: String,
     pub name: String,
@@ -36,27 +36,42 @@ pub struct RoleResponse {
     pub created_at: String,
 }
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate, utoipa::ToSchema)]
 pub struct CreateRoleRequest {
     #[validate(length(min = 1, max = 64))]
     pub name: String,
     pub description: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate, utoipa::ToSchema)]
 pub struct UpdateRoleRequest {
     #[validate(length(min = 1, max = 64))]
     pub name: String,
     pub description: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct AssignRoleRequest {
     pub role_id: String,
 }
 
 // ── Roles ─────────────────────────────────────────────────────────────────────
 
+#[utoipa::path(
+    get,
+    path = "/roles",
+    tag = "admin-roles",
+    responses(
+        (status = 200, description = "List of roles", body = Vec<RoleResponse>),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("admin_key" = [])
+    ),
+    params(
+        ("X-Ovlt-Tenant-Id" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn list_roles(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -81,6 +96,22 @@ pub async fn list_roles(
     Ok(Json(resp))
 }
 
+#[utoipa::path(
+    post,
+    path = "/roles",
+    tag = "admin-roles",
+    request_body = CreateRoleRequest,
+    responses(
+        (status = 201, description = "Role created", body = RoleResponse),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("admin_key" = [])
+    ),
+    params(
+        ("X-Ovlt-Tenant-Id" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn create_role(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -116,6 +147,23 @@ pub async fn create_role(
     ))
 }
 
+#[utoipa::path(
+    put,
+    path = "/roles/{id}",
+    tag = "admin-roles",
+    request_body = UpdateRoleRequest,
+    responses(
+        (status = 204, description = "Role updated"),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("admin_key" = [])
+    ),
+    params(
+        ("id" = String, Path, description = "Role UUID"),
+        ("X-Ovlt-Tenant-Id" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn update_role(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -142,6 +190,22 @@ pub async fn update_role(
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[utoipa::path(
+    delete,
+    path = "/roles/{id}",
+    tag = "admin-roles",
+    responses(
+        (status = 204, description = "Role deleted"),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("admin_key" = [])
+    ),
+    params(
+        ("id" = String, Path, description = "Role UUID"),
+        ("X-Ovlt-Tenant-Id" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn delete_role(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -159,6 +223,22 @@ pub async fn delete_role(
 
 // ── User roles ────────────────────────────────────────────────────────────────
 
+#[utoipa::path(
+    get,
+    path = "/users/{id}/roles",
+    tag = "admin-roles",
+    responses(
+        (status = 200, description = "List of roles for user", body = Vec<RoleResponse>),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("admin_key" = [])
+    ),
+    params(
+        ("id" = String, Path, description = "User UUID"),
+        ("X-Ovlt-Tenant-Id" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn list_user_roles(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -184,6 +264,23 @@ pub async fn list_user_roles(
     Ok(Json(resp))
 }
 
+#[utoipa::path(
+    post,
+    path = "/users/{id}/roles",
+    tag = "admin-roles",
+    request_body = AssignRoleRequest,
+    responses(
+        (status = 204, description = "Role assigned to user"),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("admin_key" = [])
+    ),
+    params(
+        ("id" = String, Path, description = "User UUID"),
+        ("X-Ovlt-Tenant-Id" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn assign_user_role(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -203,6 +300,23 @@ pub async fn assign_user_role(
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[utoipa::path(
+    delete,
+    path = "/users/{user_id}/roles/{role_id}",
+    tag = "admin-roles",
+    responses(
+        (status = 204, description = "Role revoked from user"),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("admin_key" = [])
+    ),
+    params(
+        ("user_id" = String, Path, description = "User UUID"),
+        ("role_id" = String, Path, description = "Role UUID"),
+        ("X-Ovlt-Tenant-Id" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn revoke_user_role(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -220,6 +334,22 @@ pub async fn revoke_user_role(
 
 // ── Client roles ──────────────────────────────────────────────────────────────
 
+#[utoipa::path(
+    get,
+    path = "/clients/{id}/roles",
+    tag = "admin-roles",
+    responses(
+        (status = 200, description = "List of roles for client", body = Vec<RoleResponse>),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("admin_key" = [])
+    ),
+    params(
+        ("id" = String, Path, description = "Client UUID"),
+        ("X-Ovlt-Tenant-Id" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn list_client_roles(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -245,6 +375,23 @@ pub async fn list_client_roles(
     Ok(Json(resp))
 }
 
+#[utoipa::path(
+    post,
+    path = "/clients/{id}/roles",
+    tag = "admin-roles",
+    request_body = AssignRoleRequest,
+    responses(
+        (status = 204, description = "Role assigned to client"),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("admin_key" = [])
+    ),
+    params(
+        ("id" = String, Path, description = "Client UUID"),
+        ("X-Ovlt-Tenant-Id" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn assign_client_role(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -264,6 +411,23 @@ pub async fn assign_client_role(
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[utoipa::path(
+    delete,
+    path = "/clients/{client_id}/roles/{role_id}",
+    tag = "admin-roles",
+    responses(
+        (status = 204, description = "Role revoked from client"),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("admin_key" = [])
+    ),
+    params(
+        ("client_id" = String, Path, description = "Client UUID"),
+        ("role_id" = String, Path, description = "Role UUID"),
+        ("X-Ovlt-Tenant-Id" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn revoke_client_role(
     State(state): State<AppState>,
     headers: HeaderMap,

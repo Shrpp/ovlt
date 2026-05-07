@@ -10,6 +10,21 @@ use crate::{
     state::AppState,
 };
 
+#[utoipa::path(
+    get,
+    path = "/users/me",
+    tag = "user",
+    responses(
+        (status = 200, description = "Current user profile"),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("bearer_auth" = [])
+    ),
+    params(
+        ("X-Tenant-ID" = String, Header, description = "Tenant UUID"),
+    )
+)]
 pub async fn me(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
