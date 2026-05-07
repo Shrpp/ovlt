@@ -148,11 +148,11 @@ fn build_router(state: AppState) -> Router {
     let auth_public = routes::auth::public_router()
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
-            rate_limit_middleware,
+            tenant_middleware,
         ))
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
-            tenant_middleware,
+            rate_limit_middleware,
         ));
 
     let auth_universal = routes::auth::universal_router().layer(

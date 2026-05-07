@@ -1,4 +1,4 @@
-use axum::{routing::get, Json, Router};
+use axum::Router;
 use utoipa::{
     openapi::security::{ApiKey, ApiKeyValue, HttpAuthScheme, HttpBuilder, SecurityScheme},
     Modify, OpenApi,
@@ -254,13 +254,5 @@ pub struct ApiDoc;
 /// - `GET /docs`         — Swagger UI
 pub fn swagger_router() -> Router<AppState> {
     let spec = ApiDoc::openapi();
-    Router::new()
-        .merge(SwaggerUi::new("/docs").url("/openapi.json", spec.clone()))
-        .route(
-            "/openapi.json",
-            get(move || {
-                let s = spec.clone();
-                async move { Json(s) }
-            }),
-        )
+    Router::new().merge(SwaggerUi::new("/docs").url("/openapi.json", spec))
 }

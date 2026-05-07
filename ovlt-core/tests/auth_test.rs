@@ -14,7 +14,7 @@ use uuid::Uuid;
 async fn setup() -> (sea_orm::DatabaseConnection, Config, Uuid, String) {
     dotenvy::dotenv().ok();
     let cfg = Config::from_env().expect("config");
-    let db = db::connect(&cfg.database_url).await.expect("db");
+    let db = db::connect(&cfg.database_url, 5, 1).await.expect("db");
 
     let tenant_key_plain = "dev-test-tenant-key-32chars-long!";
     let encrypted_key = hefesto::encrypt(
