@@ -77,10 +77,11 @@ pub async fn logout(
         let _ = session_service::delete(&state.db, &session_id).await;
     }
 
+    let secure = if state.config.is_production() { "; Secure" } else { "" };
     let mut response_headers = HeaderMap::new();
     response_headers.insert(
         header::SET_COOKIE,
-        "ovlt_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0"
+        format!("ovlt_session=; HttpOnly; SameSite=Lax{secure}; Path=/; Max-Age=0")
             .parse()
             .unwrap(),
     );

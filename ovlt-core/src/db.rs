@@ -1,6 +1,6 @@
 use sea_orm::{
-    ConnectOptions, ConnectionTrait, Database, DatabaseConnection, DatabaseTransaction, DbErr,
-    TransactionTrait,
+    ConnectOptions, ConnectionTrait, Database, DatabaseBackend, DatabaseConnection,
+    DatabaseTransaction, DbErr, Statement, TransactionTrait,
 };
 use std::time::Duration;
 use tracing::info;
@@ -16,15 +16,23 @@ pub async fn begin_tenant_txn(
 ) -> Result<DatabaseTransaction, DbErr> {
     let txn = db.begin().await?;
     txn.execute_unprepared("SET LOCAL ROLE ovlt_rls").await?;
-    txn.execute_unprepared(&format!("SET LOCAL app.tenant_id = '{tenant_id}'"))
-        .await?;
+    txn.execute(Statement::from_sql_and_values(
+        DatabaseBackend::Postgres,
+        "SELECT set_config('app.tenant_id', $1, true)",
+        [tenant_id.to_string().into()],
+    ))
+    .await?;
     Ok(txn)
 }
 
-pub async fn connect(database_url: &str) -> Result<DatabaseConnection, DbErr> {
+pub async fn connect(
+    database_url: &str,
+    max_connections: u32,
+    min_connections: u32,
+) -> Result<DatabaseConnection, DbErr> {
     let mut opts = ConnectOptions::new(database_url.to_owned());
-    opts.max_connections(20)
-        .min_connections(2)
+    opts.max_connections(max_connections)
+        .min_connections(min_connections)
         .connect_timeout(Duration::from_secs(10))
         .acquire_timeout(Duration::from_secs(10))
         .idle_timeout(Duration::from_secs(600))

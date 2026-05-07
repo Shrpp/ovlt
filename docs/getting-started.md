@@ -162,6 +162,27 @@ description: Run OVLT in under 5 minutes.
 
     A **master** tenant is created automatically on first startup using your bootstrap credentials. Navigate with arrow keys or `j`/`k`. Press `?` for the full key reference.
   </Step>
+
+  <Step title="Test the API directly">
+    Use `x-ovlt-tenant-slug` to identify the tenant — no UUID needed during development.
+
+    ```bash
+    # Login
+    curl -s -X POST http://localhost:3000/auth/login \
+      -H 'x-ovlt-tenant-slug: master' \
+      -H 'Content-Type: application/json' \
+      -d '{"email":"admin@example.com","password":"Admin1234!"}' | jq
+
+    # Get current user (use the access_token from above)
+    curl -s http://localhost:3000/users/me \
+      -H 'x-ovlt-tenant-slug: master' \
+      -H 'Authorization: Bearer <access_token>' | jq
+    ```
+
+    <Tip>
+      Use `x-ovlt-tenant-slug: master` in development. In production, prefer `x-ovlt-tenant-id: <uuid>` to skip the slug lookup.
+    </Tip>
+  </Step>
 </Steps>
 
 ## Next steps

@@ -37,7 +37,7 @@ async fn main() {
 
     init_tracing(config.environment == Environment::Production);
 
-    let db = db::connect(&config.database_url).await.unwrap_or_else(|e| {
+    let db = db::connect(&config.database_url, config.db_max_connections, config.db_min_connections).await.unwrap_or_else(|e| {
         eprintln!("DB connection failed: {e}");
         std::process::exit(1);
     });

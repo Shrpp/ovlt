@@ -2,7 +2,7 @@ use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, PaginatorTrait,
 use uuid::Uuid;
 
 use crate::{
-    config::Config,
+    config::{Config, Environment},
     db,
     entity::tenants,
     error::AppError,
@@ -80,6 +80,28 @@ pub async fn run(db: &DatabaseConnection, config: &Config) -> Result<(), AppErro
         email = %email_normalized,
         "bootstrap: master tenant, admin user, and SuperAdmin role created"
     );
+
+    if config.environment == Environment::Development {
+        let admin_key = config.admin_key.as_deref().unwrap_or("(not set)");
+        eprintln!();
+        eprintln!("  ╔══════════════════════════════════════════════════════════════╗");
+        eprintln!("  ║              OVLT — FIRST RUN CREDENTIALS                   ║");
+        eprintln!("  ║  Save these — they won't be shown again.                    ║");
+        eprintln!("  ╠══════════════════════════════════════════════════════════════╣");
+        eprintln!("  ║  Tenant slug:  {slug:<46}║");
+        eprintln!("  ║  Tenant ID:    {tenant_id:<46}║");
+        eprintln!("  ║  Admin email:  {email_normalized:<46}║");
+        eprintln!("  ║  Admin pass:   {password:<46}║");
+        eprintln!("  ║  Admin key:    {admin_key:<46}║");
+        eprintln!("  ╠══════════════════════════════════════════════════════════════╣");
+        eprintln!("  ║  Try it:                                                     ║");
+        eprintln!("  ║  curl -s -X POST http://localhost:3000/auth/login \\          ║");
+        eprintln!("  ║    -H 'x-ovlt-tenant-slug: {slug}' \\", slug = slug);
+        eprintln!("  ║    -H 'Content-Type: application/json' \\                    ║");
+        eprintln!("  ║    -d '{{\"email\":\"{email_normalized}\",\"password\":\"{password}\"}}' | jq");
+        eprintln!("  ╚══════════════════════════════════════════════════════════════╝");
+        eprintln!();
+    }
 
     Ok(())
 }

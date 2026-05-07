@@ -1,7 +1,7 @@
 use chrono::Utc;
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DatabaseTransaction,
+    sea_query::Expr, ActiveModelTrait, ColumnTrait, DatabaseConnection, DatabaseTransaction,
     EntityTrait, QueryFilter, Set,
 };
 use serde::{Deserialize, Serialize};
@@ -171,11 +171,15 @@ pub async fn revoke_all_user_tokens(
     txn: &DatabaseTransaction,
     user_id: Uuid,
 ) -> Result<(), AppError> {
-    txn.execute_unprepared(&format!(
-        "UPDATE refresh_tokens SET revoked_at = now() \
-         WHERE user_id = '{user_id}' AND revoked_at IS NULL"
-    ))
-    .await?;
+    refresh_tokens::Entity::update_many()
+        .col_expr(
+            refresh_tokens::Column::RevokedAt,
+            Expr::value(Utc::now().fixed_offset()),
+        )
+        .filter(refresh_tokens::Column::UserId.eq(user_id))
+        .filter(refresh_tokens::Column::RevokedAt.is_null())
+        .exec(txn)
+        .await?;
     Ok(())
 }
 

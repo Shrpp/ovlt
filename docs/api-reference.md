@@ -10,8 +10,11 @@ description: All HTTP endpoints exposed by ovlt-core.
 | Header | Required on |
 |--------|-------------|
 | `X-OVLT-Admin-Key: <OVLT_ADMIN_KEY>` | All `/admin/*` and management endpoints |
-| `X-Tenant-Slug: <slug>` | All tenant-scoped endpoints |
+| `x-ovlt-tenant-slug: <slug>` | All tenant-scoped auth/user endpoints (preferred) |
+| `x-ovlt-tenant-id: <uuid>` | Alternative to slug — use UUID directly |
 | `Authorization: Bearer <access_token>` | Protected user endpoints |
+
+Use `x-ovlt-tenant-slug` during development. Use `x-ovlt-tenant-id` in production if you want to avoid the slug lookup on every request.
 
 ---
 
@@ -40,7 +43,7 @@ Standard OIDC discovery document and JWK Set for verifying RS256-signed tokens.
 
 ## Auth
 
-All endpoints below require `X-Tenant-Slug`.
+All endpoints below require `x-ovlt-tenant-slug` (or `x-ovlt-tenant-id`).
 
 ### Register
 
@@ -152,7 +155,7 @@ Redirects to the provider. Callback is handled at `GET /auth/callback/{provider}
 
 ## MFA
 
-All require `X-Tenant-Slug`. Setup and disable require `Authorization: Bearer`.
+All require `x-ovlt-tenant-slug` (or `x-ovlt-tenant-id`). Setup and disable require `Authorization: Bearer`.
 
 ### Start MFA setup
 
@@ -300,7 +303,7 @@ DELETE /tenants/:id     # delete tenant
 
 ## Admin — Clients
 
-Require `X-OVLT-Admin-Key` + `X-Tenant-Slug`.
+Require `X-OVLT-Admin-Key` + `x-ovlt-tenant-slug`.
 
 ```http
 POST   /clients          # create client
@@ -313,7 +316,7 @@ DELETE /clients/:id      # deactivate client
 
 ## Admin — Users
 
-Require `X-OVLT-Admin-Key` + `X-Tenant-Slug`.
+Require `X-OVLT-Admin-Key` + `x-ovlt-tenant-slug`.
 
 ```http
 GET    /users                           # list users
@@ -330,7 +333,7 @@ DELETE /users/:id/mfa                   # admin disable MFA
 
 ## Admin — Roles
 
-Require `X-OVLT-Admin-Key` + `X-Tenant-Slug`.
+Require `X-OVLT-Admin-Key` + `x-ovlt-tenant-slug`.
 
 ```http
 GET    /roles                                # list roles
@@ -351,7 +354,7 @@ DELETE /clients/:client_id/roles/:role_id    # revoke client role
 
 ## Admin — Permissions
 
-Require `X-OVLT-Admin-Key` + `X-Tenant-Slug`.
+Require `X-OVLT-Admin-Key` + `x-ovlt-tenant-slug`.
 
 ```http
 GET    /permissions                              # list permissions
@@ -368,7 +371,7 @@ DELETE /roles/:role_id/permissions/:perm_id      # revoke permission from role
 
 ## Admin — Sessions
 
-Require `X-OVLT-Admin-Key` + `X-Tenant-Slug`.
+Require `X-OVLT-Admin-Key` + `x-ovlt-tenant-slug`.
 
 ```http
 GET    /sessions       # list active sessions
@@ -379,7 +382,7 @@ DELETE /sessions/:id   # revoke session
 
 ## Admin — Identity Providers
 
-Require `X-OVLT-Admin-Key` + `X-Tenant-Slug`.
+Require `X-OVLT-Admin-Key` + `x-ovlt-tenant-slug`.
 
 ```http
 GET    /identity-providers       # list providers
@@ -392,7 +395,7 @@ DELETE /identity-providers/:id   # delete provider
 
 ## Admin — Audit Log
 
-Require `X-OVLT-Admin-Key` + `X-Tenant-Slug`.
+Require `X-OVLT-Admin-Key` + `x-ovlt-tenant-slug`.
 
 ```http
 GET /audit-log?page=1&per_page=50
@@ -402,7 +405,7 @@ GET /audit-log?page=1&per_page=50
 
 ## Admin — Settings
 
-Require `Authorization: Bearer` (admin user) + `X-Tenant-Slug`.
+Require `Authorization: Bearer` (admin user) + `x-ovlt-tenant-slug`.
 
 ```http
 GET /settings

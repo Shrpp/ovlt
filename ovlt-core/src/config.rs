@@ -34,6 +34,8 @@ pub struct Config {
     /// Base64-encoded PKCS8 PEM for RS256 id_token signing.
     /// If not set, an ephemeral key is generated (lost on restart).
     pub rsa_private_key: Option<String>,
+    pub db_max_connections: u32,
+    pub db_min_connections: u32,
 }
 
 #[derive(Clone, Debug)]
@@ -57,6 +59,22 @@ fn gen_secret() -> String {
 
 impl Config {
     pub fn from_env() -> Result<Self, String> {
+        let dev_mode = env::var("OVLT_DEV_MODE").is_ok_and(|v| v == "1");
+
+        let environment = match env::var("ENVIRONMENT")
+            .unwrap_or_else(|_| "development".into())
+            .as_str()
+        {
+            "production" => Environment::Production,
+            _ => Environment::Development,
+        };
+
+        if dev_mode && environment == Environment::Production {
+            return Err(
+                "OVLT_DEV_MODE=1 cannot be used with ENVIRONMENT=production".into(),
+            );
+        }
+
         let (jwt_secret, master_encryption_key, tenant_wrap_key, generated) = {
             let jwt = env::var("JWT_SECRET").ok();
             let mek = env::var("MASTER_ENCRYPTION_KEY").ok();
@@ -105,14 +123,6 @@ impl Config {
             eprintln!();
         }
 
-        let environment = match env::var("ENVIRONMENT")
-            .unwrap_or_else(|_| "development".into())
-            .as_str()
-        {
-            "production" => Environment::Production,
-            _ => Environment::Development,
-        };
-
         let database_url = require("DATABASE_URL")?;
         if environment == Environment::Production && !database_url.contains("sslmode") {
             return Err(
@@ -134,6 +144,24 @@ impl Config {
             );
         }
 
+        let admin_key = env::var("OVLT_ADMIN_KEY").ok().or_else(|| {
+            if dev_mode {
+                let key = gen_secret();
+                eprintln!("  [DEV MODE] Generated OVLT_ADMIN_KEY={key}");
+                Some(key)
+            } else {
+                None
+            }
+        });
+
+        let bootstrap_admin_email = env::var("OVLT_BOOTSTRAP_ADMIN_EMAIL")
+            .ok()
+            .or_else(|| dev_mode.then(|| "admin@example.com".to_string()));
+
+        let bootstrap_admin_password = env::var("OVLT_BOOTSTRAP_ADMIN_PASSWORD")
+            .ok()
+            .or_else(|| dev_mode.then(|| "Admin1234!".to_string()));
+
         Ok(Self {
             database_url,
             jwt_secret,
@@ -150,12 +178,14 @@ impl Config {
             cors_allowed_origins,
             google_oauth: opt_oauth("GOOGLE"),
             github_oauth: opt_oauth("GITHUB"),
-            admin_key: env::var("OVLT_ADMIN_KEY").ok(),
+            admin_key,
             bootstrap_tenant_slug: env::var("OVLT_BOOTSTRAP_TENANT_SLUG").ok(),
-            bootstrap_admin_email: env::var("OVLT_BOOTSTRAP_ADMIN_EMAIL").ok(),
-            bootstrap_admin_password: env::var("OVLT_BOOTSTRAP_ADMIN_PASSWORD").ok(),
+            bootstrap_admin_email,
+            bootstrap_admin_password,
             ovlt_issuer: env::var("OVLT_ISSUER").unwrap_or_else(|_| "http://localhost:3000".into()),
             rsa_private_key: env::var("RSA_PRIVATE_KEY").ok(),
+            db_max_connections: parse_u32("DATABASE_MAX_CONNECTIONS", 20)?,
+            db_min_connections: parse_u32("DATABASE_MIN_CONNECTIONS", 2)?,
         })
     }
 
@@ -189,6 +219,15 @@ fn parse_i64(key: &str, default: i64) -> Result<i64, String> {
         Ok(v) => v
             .parse::<i64>()
             .map_err(|_| format!("{key} must be an integer")),
+        Err(_) => Ok(default),
+    }
+}
+
+fn parse_u32(key: &str, default: u32) -> Result<u32, String> {
+    match env::var(key) {
+        Ok(v) => v
+            .parse::<u32>()
+            .map_err(|_| format!("{key} must be a positive integer")),
         Err(_) => Ok(default),
     }
 }

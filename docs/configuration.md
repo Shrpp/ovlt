@@ -52,6 +52,16 @@ These are consumed once during first startup to seed the master tenant and admin
   Slug for the first tenant created on startup.
 </ParamField>
 
+## Dev mode
+
+<ParamField path="OVLT_DEV_MODE" type="string">
+  Set to `1` to run with zero manual configuration. Generates `OVLT_ADMIN_KEY` automatically and seeds the master tenant with `admin@example.com` / `Admin1234!` if bootstrap vars are not set. **Blocked when `ENVIRONMENT=production`.**
+
+  ```bash
+  docker run ... -e DATABASE_URL=... -e OVLT_DEV_MODE=1 ghcr.io/shrpp/ovlt-core:latest
+  ```
+</ParamField>
+
 ## Server
 
 <ParamField path="SERVER_HOST" type="string" default="0.0.0.0">
@@ -78,6 +88,16 @@ These are consumed once during first startup to seed the master tenant and admin
 
 <ParamField path="REFRESH_TOKEN_EXPIRATION_DAYS" type="number" default="30">
   Refresh token lifetime in days.
+</ParamField>
+
+## Database pool
+
+<ParamField path="DATABASE_MAX_CONNECTIONS" type="number" default="20">
+  Maximum number of PostgreSQL connections in the pool. Increase for high-traffic deployments.
+</ParamField>
+
+<ParamField path="DATABASE_MIN_CONNECTIONS" type="number" default="2">
+  Minimum idle connections kept open.
 </ParamField>
 
 ## CORS
