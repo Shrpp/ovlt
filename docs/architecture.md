@@ -33,25 +33,33 @@ Each tenant is a row in the `tenants` table. Every data table (`users`, `clients
 ```mermaid
 sequenceDiagram
     participant MW as tenant_middleware
+    participant H as handler
     participant DB as PostgreSQL (ovlt_rls role)
     participant RLS as RLS policy
 
-    MW->>DB: SET LOCAL app.tenant_id = '<uuid>'
-    DB->>DB: BEGIN transaction
-    Note over DB,RLS: Every query filtered by RLS
+    MW->>MW: resolve tenant from header<br/>decrypt tenant data key<br/>store TenantContext in request extensions
+    MW->>H: forward request
+    H->>DB: db::begin_tenant_txn(tenant_id)
+    DB->>DB: BEGIN; SET LOCAL app.tenant_id = '<uuid>'
+    Note over DB,RLS: Every query inside the txn filtered by RLS
     DB->>RLS: USING (tenant_id = current_setting('app.tenant_id')::uuid)
     RLS-->>DB: rows for this tenant only
-    DB-->>MW: result
+    DB-->>H: result
 ```
 
-1. The application connects as role `ovlt_rls` (not a superuser)
-2. On every request the middleware executes: `SET LOCAL app.tenant_id = '<uuid>'`
-3. All tables carry an RLS policy: `USING (tenant_id = current_setting('app.tenant_id')::uuid)`
-4. `FORCE ROW LEVEL SECURITY` prevents the table owner from bypassing it
+1. The application connects as role `ovlt_rls` (not a superuser).
+2. The `tenant_middleware` resolves the tenant from `x-ovlt-tenant-id` or `x-ovlt-tenant-slug`, decrypts the per-tenant data key, and stores both in request `Extensions` as `TenantContext`.
+3. Each handler that touches the database opens a transaction via `db::begin_tenant_txn(tenant_id)`, which executes `SELECT set_config('app.tenant_id', $1, true)` — parameterized, transaction-scoped.
+4. All tables carry an RLS policy: `USING (tenant_id = current_setting('app.tenant_id')::uuid)`.
+5. `FORCE ROW LEVEL SECURITY` prevents the table owner from bypassing it.
 
 <Note>
   Even a successful SQL injection running inside the application's DB session cannot read data from another tenant — the RLS policy returns zero rows before the data is visible.
 </Note>
+
+<Warning>
+  RLS only activates inside transactions opened with `db::begin_tenant_txn`. Handlers that use `state.db` directly without calling it will operate without `app.tenant_id` set and may read across tenants. A type-safe extractor that makes the transaction mandatory is on the beta roadmap.
+</Warning>
 
 ## Encryption model
 
@@ -80,9 +88,9 @@ flowchart TD
 ## Token model
 
 <AccordionGroup>
-  <Accordion title="Access tokens (RS256 JWT)">
+  <Accordion title="Access tokens (HS256 JWT)">
     - Short-lived (default 15 min, configurable via `JWT_EXPIRATION_MINUTES`)
-    - Signed with RSA private key; consumers verify via the JWKS endpoint
+    - Signed with `JWT_SECRET` (HMAC-SHA256); validated server-side at introspection
     - Claims: `sub`, `iss`, `aud`, `exp`, `iat`, `jti`, `tenant_id`, `roles` (M2M only)
     - JTI tracked in DB — replayed or revoked tokens are rejected at introspection
   </Accordion>
@@ -107,13 +115,15 @@ flowchart TD
     REQ(["HTTP request"])
     SEC["security_headers_middleware\nHSTS · CSP · X-Frame-Options"]
     CORS["CORS layer"]
-    TENANT["tenant_middleware\nX-Tenant-ID → SET LOCAL app.tenant_id"]
-    RATE["rate_limit_middleware\nper-IP sliding window"]
+    RATE["rate_limit_middleware\nper-IP · auth endpoints only"]
+    TENANT["tenant_middleware\nresolve tenant · decrypt data key · attach TenantContext"]
     AUTH["auth_middleware\nvalidate Bearer token · extract claims"]
     HANDLER["handler"]
+    TXN["db::begin_tenant_txn\nSET LOCAL app.tenant_id = ..."]
     RES(["HTTP response"])
 
-    REQ --> SEC --> CORS --> TENANT --> RATE --> AUTH --> HANDLER --> RES
+    REQ --> SEC --> CORS --> RATE --> TENANT --> AUTH --> HANDLER --> RES
+    HANDLER -.->|"on DB access"| TXN
 ```
 
 ## Background tasks

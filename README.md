@@ -31,7 +31,7 @@ OAuth2 + OIDC · Multi-tenant · Zero-knowledge encrypted · Self-hosted on your
 > Do not use in production until a stable release is announced.
 
 Keycloak needs a JVM and 512MB RAM. Authentik needs Redis and 735MB.  
-OVTL runs in under 20MB — on the same $6 VPS your app already lives on.
+OVLT runs in under 20MB — on the same $6 VPS your app already lives on.
 
 Built with **Rust + Axum + PostgreSQL RLS**. Powered by [hefesto](https://crates.io/crates/hefesto).
 
@@ -70,7 +70,7 @@ docker run -p 3000:3000 \
 
 ## Comparison
 
-| | OVTL | Keycloak | Authentik | Zitadel |
+| | OVLT | Keycloak | Authentik | Zitadel |
 |:---|:---:|:---:|:---:|:---:|
 | RAM at idle | **~20MB** | ~512MB | ~735MB | ~150MB |
 | Startup time | **<1s** | 30–60s | ~10s | ~5s |
@@ -188,13 +188,41 @@ Once connected, launch the TUI anytime with just `ovlt serve`. It guides you thr
    │    CLI — ovlt serve / ovlt connect, cross-platform static binaries
    │    Audit log, database access docs
    │
-   ●  Stage 5 · Production Hardening                               [ in progress ]
+   ●  Stage 5 · Security Hardening                               [ in progress ]
+   │    Cookie Secure flag in production
+   │    Remove raw SQL string interpolation (defense-in-depth)
+   │    Type-safe RLS extractor — impossible to bypass at compile time
+   │    Distributed rate limiter (PostgreSQL-backed, multi-replica safe)
+   │    MFA backup codes — recovery without admin intervention
+   │    Tenant key cache with TTL + zeroize-on-drop
+   │    Key rotation with grace period (JWT + RSA)
    │    Docker image hardening (distroless, non-root)
    │    Integration test suite (authorize → token → introspect)
    │    Password history enforcement
-   │    Expanded audit log coverage
+   │    Durable audit log (critical events synchronous, buffered otherwise)
    │
-   ○  Stage 6 · Continuous Updates                                [ planned ]
+   ○  Stage 6 · Observability & Developer Experience              [ planned ]
+   │    Prometheus metrics — /metrics endpoint (login rates, token issuance,
+   │      DB pool, JWKS cache hits)
+   │    Structured tracing — request-id correlation end-to-end
+   │    JS SDK (@ovlt/sdk) — PKCE flow, auto-refresh, TS types  [ under evaluation ]
+   │    Auto-generated SDKs — Python + Go via OpenAPI Generator on release
+   │    Framework integration guides — Next.js, Express, FastAPI, SvelteKit
+   │    Single-tenant convenience mode (DEFAULT_TENANT_SLUG env var)
+   │    Dev-mode rich errors — debug field with human-readable context
+   │    Homebrew tap · WinGet/Scoop · Code-signed binaries
+   │
+   ○  Stage 7 · Beta Features                                     [ planned ]
+   │    Generic OIDC identity broker — Microsoft, Apple, Okta, any OIDC IdP
+   │      via discovery, not just Google + GitHub
+   │    User groups — hierarchical, role inheritance, JWT claims
+   │    Tenant export / import — disaster recovery, staging→prod migration
+   │    Token introspection with bloom filter cache
+   │    Bulk user import — NDJSON, supports Argon2id passthrough + re-hash
+   │    Account self-service — sessions list/revoke, email change, password
+   │      change with current-password verification
+   │
+   ○  Stage 8 · Distribution & Auto-update                        [ planned ]
    │    Auto-update check on startup — pulls latest binary if newer version available
    │    In-place binary replacement without reinstall or service interruption
    │    Configurable update channel (stable / beta) via env var or config file

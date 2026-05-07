@@ -23,7 +23,7 @@ After **5 consecutive failed login attempts**, the account is locked for **15 mi
 
 | Token | Details |
 |-------|---------|
-| Access token | RS256 JWT, 15 min default, JTI tracked in DB |
+| Access token | HS256 JWT, 15 min default, JTI tracked in DB |
 | Refresh token | Opaque, stored as hash, rotated on every use |
 | id\_token | RS256, issued only on `authorization_code` flow |
 
@@ -49,8 +49,8 @@ Security headers set on **every response**:
 
 ## Rate limiting
 
-- Per-IP sliding-window rate limiting applied to all auth endpoints (`/auth/*`, `/oauth/*`)
-- Limits apply **before** tenant resolution — blocks enumeration probes across tenants
+- Per-IP sliding-window rate limiting applied to public auth endpoints (`/auth/*`)
+- Limits apply **before** tenant resolution — an attacker cannot use tenant validity as an oracle to enumerate tenants without burning rate limit budget
 
 ## Admin API
 
