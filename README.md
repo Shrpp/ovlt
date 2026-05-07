@@ -58,10 +58,12 @@ docker run -p 3000:3000 \
 | 🔐 **OIDC Authorization Server** | Authorization Code + PKCE, client_credentials (M2M), RS256 id_tokens, JWKS endpoint |
 | 🏢 **Multi-tenant** | PostgreSQL RLS enforcement — tenant isolation at the database level, not the application level |
 | 🔒 **Zero-knowledge encryption** | AES-256-GCM double-envelope at rest via [hefesto](https://crates.io/crates/hefesto) — the server never sees plaintext credentials |
-| 📱 **MFA** | TOTP support for authenticator apps (Authy, Google Authenticator, etc.) |
-| 🌐 **Social login** | Google and GitHub OAuth2 out of the box |
+| 📱 **MFA** | TOTP (RFC 6238) + WebAuthn/Passkeys (FIDO2 Level 2) — manage via TUI or API |
+| 🌐 **Social login** | Google and GitHub OAuth2 — per-tenant IdP config stored in DB, manageable via TUI |
+| 📧 **Per-tenant SMTP** | Encrypted credentials at rest · Auto-send on register + password reset |
 | 📋 **Audit log** | Every auth event recorded — who, what, when, from where |
-| 🖥️ **Admin TUI** | Terminal UI to manage tenants, users, clients, roles, and permissions with guided wizard setup |
+| 🖥️ **Admin TUI** | Terminal UI with guided wizard setup — manage tenants, users, clients, roles, SMTP, IdPs |
+| 🔍 **OpenAPI + Swagger UI** | Auto-generated spec at `/openapi.json` · Interactive docs at `/docs` |
 | 🛡️ **Security by default** | Argon2id passwords · Rotating refresh tokens · Account lockout · Per-IP rate limiting · HSTS · CSP |
 
 ---
@@ -86,43 +88,41 @@ docker run -p 3000:3000 \
 
 ## Install Admin TUI
 
-Download the `ovlt` binary from [GitHub Releases](https://github.com/shrpp/ovlt/releases/latest) for your platform.
+Download the `ovlt` binary from [GitHub Releases](https://github.com/shrpp/ovlt/releases/latest) for your platform.  
+Binaries are named `ovlt-<platform>-<version>` (e.g. `ovlt-macos-arm64-v0.1.0`).
 
 **macOS**
 ```bash
 # Remove quarantine flag (required — binary is unsigned in alpha)
-xattr -dr com.apple.quarantine ovlt-aarch64-apple-darwin   # M1/M2/M3
+xattr -dr com.apple.quarantine ovlt-macos-arm64-*   # M1/M2/M3/M4
 # or
-xattr -dr com.apple.quarantine ovlt-x86_64-apple-darwin    # Intel
+xattr -dr com.apple.quarantine ovlt-macos-x64-*     # Intel
 
-chmod +x ovlt-*-apple-darwin
-sudo mv ovlt-*-apple-darwin /usr/local/bin/ovlt
-ovlt --url http://localhost:3000
+chmod +x ovlt-macos-*
+sudo mv ovlt-macos-* /usr/local/bin/ovlt
+ovlt connect http://localhost:3000
 ```
 
-**Linux**
+**Linux** (static musl — zero dependencies)
 ```bash
-chmod +x ovlt-x86_64-unknown-linux-gnu   # x86_64
+chmod +x ovlt-linux-x64-*    # x86_64
 # or
-chmod +x ovlt-aarch64-unknown-linux-gnu  # ARM64
+chmod +x ovlt-linux-arm64-*  # ARM64
 
-sudo mv ovlt-*-linux-* /usr/local/bin/ovlt
-ovlt --url http://localhost:3000
+sudo mv ovlt-linux-* /usr/local/bin/ovlt
+ovlt connect http://localhost:3000
 ```
 
 **Windows**
 ```powershell
-# Rename and move to a folder in your PATH
-Move-Item ovlt-windows-x86_64.exe ovlt.exe
-
-# Run directly
-.\ovlt.exe --url http://localhost:3000
+Move-Item ovlt-windows-x64-*.exe ovlt.exe
+.\ovlt.exe connect http://localhost:3000
 ```
-> Windows SmartScreen will show a warning because the binary is not yet code-signed. This is expected for alpha builds. Click **More info → Run anyway** to proceed.
+> Windows SmartScreen will show a warning because the binary is not yet code-signed. Click **More info → Run anyway** to proceed.
 
-The TUI guides you through tenant creation, user management, client registration, and permissions — no web browser required.
+Once connected, launch the TUI anytime with just `ovlt serve`. It guides you through tenant creation, user management, client registration, SMTP config, and more — no web browser required.
 
-> **Alpha notice:** Installation steps above are intentionally manual. Homebrew tap (macOS), WinGet/Scoop (Windows), and code signing are planned for the stable beta release. This is subject to change.
+> **Alpha notice:** Homebrew tap, WinGet/Scoop, and code signing are planned for the stable beta release.
 
 ---
 
@@ -130,14 +130,18 @@ The TUI guides you through tenant creation, user management, client registration
 
 | Doc | Description |
 |:----|:------------|
-| [Getting Started](docs/getting-started.md) | Run OVTL, first login, create a tenant |
+| [Getting Started](docs/getting-started.md) | Run OVLT, first login, create a tenant |
 | [Configuration](docs/configuration.md) | All environment variables |
-| [API Reference](docs/api-reference.md) | All HTTP endpoints |
+| [API Reference](docs/api-reference.md) | All HTTP endpoints · Interactive Swagger UI at `/docs` |
 | [Admin TUI](docs/admin-tui.md) | Using the `ovlt` terminal UI |
 | [M2M / Client Credentials](docs/m2m.md) | Machine-to-machine auth flow |
 | [MFA](docs/mfa.md) | TOTP setup and management |
+| [WebAuthn / Passkeys](docs/webauthn.md) | FIDO2 passkey registration and authentication |
+| [SMTP](docs/smtp.md) | Per-tenant email delivery configuration |
+| [Social Login](docs/social-login.md) | Google and GitHub OAuth setup |
 | [Architecture](docs/architecture.md) | Multi-tenancy, RLS, encryption model |
 | [Security](docs/security.md) | Security model, threat model, hardening |
+| [Database Access](docs/database.md) | Connect via DataGrip/DBeaver locally or over SSH tunnel |
 
 ---
 
@@ -158,38 +162,39 @@ The TUI guides you through tenant creation, user management, client registration
 
 ## Roadmap
 
-The path to a stable beta is divided into focused stages — each one must be complete before the next begins.
-
 ```
-  now
+   ✓  Stage 1 · Auth Core                                               [ done ]
+   │    OIDC compliance — authorization_code + PKCE, client_credentials
+   │    RS256 id_token, JWKS, OpenID discovery
+   │    Refresh token rotation, revocation, session management
+   │    RBAC — roles, permissions, claims in tokens
    │
-   ●  Stage 1 · OIDC Compliance                                     [ in progress ]
-   │    refresh_token grant at /oauth/token
-   │    /oauth/userinfo endpoint
-   │    RS256-signed access tokens (JWKS-verifiable)
-   │    Roles in introspect response (realm_access / resource_access)
+   ✓  Stage 2 · User Lifecycle                                          [ done ]
+   │    Password reset + email verification (one-time tokens)
+   │    Password policies, account lockout, login attempt tracking
+   │    Per-tenant settings (TTL, lockout thresholds, registration toggle)
    │
-   ●  Stage 2 · Email Delivery                                       [ pending ]
-   │    SMTP integration via lettre (pluggable config)
-   │    Password reset emails
-   │    Email verification on register
+   ✓  Stage 3 · Extended Auth                                           [ done ]
+   │    TOTP MFA (RFC 6238) — setup, challenge, disable, admin override
+   │    WebAuthn / Passkeys (FIDO2 Level 2) — register, authenticate, manage
+   │    Social login — Google + GitHub, per-tenant IdP config via DB + TUI
+   │    Per-tenant SMTP — encrypted credentials, auto-send on register + reset
    │
-   ●  Stage 3 · TUI Completeness                                     [ pending ]
-   │    Settings tab fully wired (policy, TTL, lockout)
-   │    Identity Providers tab wired (per-tenant social login via DB)
+   ✓  Stage 4 · DX & Observability                                      [ done ]
+   │    OpenAPI spec — GET /openapi.json + Swagger UI at GET /docs
+   │    Universal login — no tenant picker, server resolves from email
+   │    Structured errors — field-level validation, friendly messages
+   │    TUI redesign — consistent keybindings, contextual hints, settings modals
+   │    CLI — ovlt serve / ovlt connect, cross-platform static binaries
+   │    Audit log, database access docs
    │
-   ●  Stage 4 · Production Hardening                                 [ pending ]
-   │    Semver releases + CHANGELOG (v0.1.0)
+   ●  Stage 5 · Production Hardening                               [ in progress ]
    │    Docker image hardening (distroless, non-root)
-   │    Rate limit thresholds documented and configurable
+   │    Integration test suite (authorize → token → introspect)
+   │    Password history enforcement
+   │    Expanded audit log coverage
    │
-   ●  Stage 5 · Extended Features                                    [ pending ]
-   │    HTTP integration tests (authorize → token → introspect)
-   │    Webhook events (login, logout, MFA)
-   │    WebAuthn / Passkeys
-   │    DB-stored social IDPs (per-tenant, configurable via TUI)
-   │
-   ◉  Early access — Q3 2026
+   ◉  Stable beta — Q3 2026
 ```
 
 > Have a feature in mind or found a bug? [Open a Discussion →](https://github.com/shrpp/ovlt/discussions)
