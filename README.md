@@ -194,6 +194,12 @@ Once connected, launch the TUI anytime with just `ovlt serve`. It guides you thr
    │    Password history enforcement
    │    Expanded audit log coverage
    │
+   ○  Stage 6 · Continuous Updates                                [ planned ]
+   │    Auto-update check on startup — pulls latest binary if newer version available
+   │    In-place binary replacement without reinstall or service interruption
+   │    Configurable update channel (stable / beta) via env var or config file
+   │    Opt-out flag for air-gapped / locked environments
+   │
    ◉  Stable beta — Q3 2026
 ```
 

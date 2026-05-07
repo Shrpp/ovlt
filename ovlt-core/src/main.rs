@@ -42,13 +42,11 @@ async fn main() {
         std::process::exit(1);
     });
 
-    if std::env::args().any(|a| a == "--migrate") {
-        Migrator::up(&db, None).await.unwrap_or_else(|e| {
-            eprintln!("Migration failed: {e}");
-            std::process::exit(1);
-        });
-        tracing::info!("migrations applied");
-    }
+    Migrator::up(&db, None).await.unwrap_or_else(|e| {
+        eprintln!("Migration failed: {e}");
+        std::process::exit(1);
+    });
+    tracing::info!("migrations applied");
 
     bootstrap_service::run(&db, &config)
         .await

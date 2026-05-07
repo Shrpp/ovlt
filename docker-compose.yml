@@ -43,7 +43,6 @@ services:
       postgres:
         condition: service_healthy
     restart: unless-stopped
-    command: ["./ovlt-core", "--migrate"]
 
 volumes:
   postgres_data:

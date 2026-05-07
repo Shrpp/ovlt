@@ -20,7 +20,7 @@ logs:
 	docker compose logs -f ovlt-core
 
 migrate:
-	docker compose run --rm ovlt-core ./ovlt-core --migrate
+	docker compose run --rm ovlt-core ./ovlt-core
 
 cli:
 	@command -v cargo >/dev/null || { echo "cargo not found"; exit 1; }

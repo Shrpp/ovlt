@@ -34,7 +34,7 @@ These are generated on first run if not set. OVLT prints them to stderr. **Pin t
 
 ## Bootstrap (first-run only)
 
-These are consumed once during `--migrate` / first startup to seed the master tenant and admin user.
+These are consumed once during first startup to seed the master tenant and admin user.
 
 <ParamField path="OVLT_ADMIN_KEY" type="string">
   Static key required in the `X-OVLT-Admin-Key` header on all admin endpoints. If unset, admin endpoints return `404` (not `401`) to prevent enumeration.
