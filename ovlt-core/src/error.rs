@@ -1,5 +1,5 @@
 use axum::{http::StatusCode, response::IntoResponse, Json};
-use serde_json::json;
+use serde_json::{json, Map, Value};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -22,36 +22,106 @@ pub enum AppError {
     CryptoError(#[from] hefesto::HefestoError),
     #[error("token error")]
     TokenError(String),
+    #[error("validation error")]
+    Validation(Vec<(String, String)>),
 }
 
 impl IntoResponse for AppError {
     fn into_response(self) -> axum::response::Response {
-        let (status, message) = match &self {
-            AppError::Unauthorized => (StatusCode::UNAUTHORIZED, "Unauthorized".to_string()),
-            AppError::Forbidden => (StatusCode::FORBIDDEN, "Forbidden".to_string()),
-            AppError::NotFound => (StatusCode::NOT_FOUND, "Not found".to_string()),
-            AppError::Conflict => (StatusCode::CONFLICT, "Already exists".to_string()),
+        match self {
+            AppError::Validation(fields) => {
+                let mut field_map = Map::new();
+                for (k, v) in fields {
+                    field_map.insert(k, Value::String(v));
+                }
+                (
+                    StatusCode::UNPROCESSABLE_ENTITY,
+                    Json(json!({
+                        "error": "validation_failed",
+                        "message": "Please check your input",
+                        "fields": field_map,
+                    })),
+                )
+                    .into_response()
+            }
+            AppError::Unauthorized => (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({
+                    "error": "unauthorized",
+                    "message": "Incorrect email or password",
+                })),
+            )
+                .into_response(),
+            AppError::Forbidden => (
+                StatusCode::FORBIDDEN,
+                Json(json!({
+                    "error": "forbidden",
+                    "message": "You don't have permission to perform this action",
+                })),
+            )
+                .into_response(),
+            AppError::NotFound => (
+                StatusCode::NOT_FOUND,
+                Json(json!({
+                    "error": "not_found",
+                    "message": "The requested resource was not found",
+                })),
+            )
+                .into_response(),
+            AppError::Conflict => (
+                StatusCode::CONFLICT,
+                Json(json!({
+                    "error": "already_exists",
+                    "message": "This already exists",
+                })),
+            )
+                .into_response(),
             AppError::TooManyRequests => (
                 StatusCode::TOO_MANY_REQUESTS,
-                "Too many requests".to_string(),
-            ),
-            AppError::InvalidInput(m) => (StatusCode::BAD_REQUEST, m.clone()),
+                Json(json!({
+                    "error": "too_many_requests",
+                    "message": "Too many attempts. Please wait before trying again",
+                })),
+            )
+                .into_response(),
+            AppError::InvalidInput(m) => (
+                StatusCode::BAD_REQUEST,
+                Json(json!({
+                    "error": "invalid_input",
+                    "message": m,
+                })),
+            )
+                .into_response(),
+            AppError::TokenError(_) => (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({
+                    "error": "unauthorized",
+                    "message": "Invalid or expired token",
+                })),
+            )
+                .into_response(),
             AppError::Internal(e) => {
                 tracing::error!("db error: {e}");
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    "Internal error".to_string(),
+                    Json(json!({
+                        "error": "server_error",
+                        "message": "Something went wrong. Please try again",
+                    })),
                 )
+                    .into_response()
             }
             AppError::CryptoError(e) => {
                 tracing::error!("crypto error: {e}");
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    "Internal error".to_string(),
+                    Json(json!({
+                        "error": "server_error",
+                        "message": "Something went wrong. Please try again",
+                    })),
                 )
+                    .into_response()
             }
-            AppError::TokenError(_) => (StatusCode::UNAUTHORIZED, "Invalid token".to_string()),
-        };
-        (status, Json(json!({ "error": message }))).into_response()
+        }
     }
 }

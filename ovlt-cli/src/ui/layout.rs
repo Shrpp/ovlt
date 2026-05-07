@@ -43,6 +43,7 @@ pub fn render_header(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(block, area);
 
     let brand = Paragraph::new(Line::from(vec![
+        Span::raw(" "),
         Span::styled(
             "ovlt",
             Style::default()

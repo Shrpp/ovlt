@@ -11,6 +11,7 @@ pub mod audit_log;
 pub mod clients;
 pub mod forgot_password;
 pub mod login;
+pub mod login_universal;
 pub mod logout;
 pub mod me;
 pub mod mfa;

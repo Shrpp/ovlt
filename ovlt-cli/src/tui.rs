@@ -34,22 +34,11 @@ pub async fn run(mut app: App) -> io::Result<()> {
             app.mode = AppMode::Login {
                 email: String::new(),
                 password: String::new(),
-                slug: String::from("master"),
-                slug_idx: 0,
                 field: 0,
                 error: None,
+                tenant_choices: None,
+                tenant_choice_idx: 0,
             };
-        }
-    }
-
-    // Pre-fetch tenant list so login can show a dropdown.
-    if let Ok(opts) = app.client.list_tenant_slugs().await {
-        if !opts.is_empty() {
-            if let AppMode::Login { slug, slug_idx, .. } = &mut app.mode {
-                *slug = opts[0].0.clone();
-                *slug_idx = 0;
-            }
-            app.tenant_options = opts;
         }
     }
 
@@ -95,86 +84,7 @@ pub async fn run(mut app: App) -> io::Result<()> {
                 Tab::AuditLog => ui::audit_log::render(frame, &app, content_body, &mut audit_table),
             }
 
-            let hints: Vec<(&str, &str)> = match app.focus {
-                Focus::Sidebar => vec![
-                    ("↑↓", "Tenant"),
-                    ("→/Enter", "Open"),
-                    ("n", "New tenant"),
-                    ("r", "Refresh"),
-                    ("q", "Quit"),
-                ],
-                Focus::Content => match app.tab {
-                    Tab::Clients => vec![
-                        ("Esc", "Back"),
-                        ("←→", "Switch tab"),
-                        ("↑↓", "Navigate"),
-                        ("n", "New"),
-                        ("e", "Edit"),
-                        ("r", "Roles (M2M only)"),
-                        ("d", "Delete"),
-                        ("q", "Quit"),
-                    ],
-                    Tab::Users => vec![
-                        ("Esc", "Back"),
-                        ("←→", "Switch tab"),
-                        ("↑↓", "Navigate"),
-                        ("n", "New"),
-                        ("e", "Edit"),
-                        ("m", "Disable MFA"),
-                        ("d", "Deactivate"),
-                        ("q", "Quit"),
-                    ],
-                    Tab::Roles => vec![
-                        ("Esc", "Back"),
-                        ("←→", "Switch tab"),
-                        ("↑↓", "Navigate"),
-                        ("n", "New"),
-                        ("e", "Edit"),
-                        ("d", "Delete"),
-                        ("q", "Quit"),
-                    ],
-                    Tab::Permissions => vec![
-                        ("Esc", "Back"),
-                        ("←→", "Switch tab"),
-                        ("↑↓", "Navigate"),
-                        ("n", "New"),
-                        ("e", "Edit"),
-                        ("d", "Delete"),
-                        ("q", "Quit"),
-                    ],
-                    Tab::Sessions => vec![
-                        ("Esc", "Back"),
-                        ("←→", "Switch tab"),
-                        ("↑↓", "Navigate"),
-                        ("d", "Revoke"),
-                        ("q", "Quit"),
-                    ],
-                    Tab::Settings => vec![
-                        ("Esc", "Back"),
-                        ("←→", "Section"),
-                        ("Tab", "Next field"),
-                        ("Enter", "Save"),
-                        ("q", "Quit"),
-                    ],
-                    Tab::IdentityProviders => vec![
-                        ("Esc", "Back"),
-                        ("←→", "Switch tab"),
-                        ("↑↓", "Navigate"),
-                        ("n", "New"),
-                        ("e", "Edit"),
-                        ("d", "Delete"),
-                        ("q", "Quit"),
-                    ],
-                    Tab::AuditLog => vec![
-                        ("Esc", "Back"),
-                        ("←→", "Switch tab"),
-                        ("↑↓", "Navigate"),
-                        ("q", "Quit"),
-                    ],
-                },
-            };
-
-            statusbar::render(frame, statusbar_area, &hints, app.status_msg.as_deref());
+            statusbar::render(frame, &app, statusbar_area);
 
             match &app.modal.clone() {
                 Modal::None => {}
@@ -418,6 +328,55 @@ pub async fn run(mut app: App) -> io::Result<()> {
                 } => {
                     modal::render_user_roles(frame, client_name, all_roles, *selected);
                 }
+                Modal::EditSettings(section) => {
+                    let s = &app.settings;
+                    let f = s.modal_field;
+                    match section {
+                        0 => modal::render_settings_password_policy(
+                            frame,
+                            &s.policy_min_length,
+                            s.policy_require_uppercase,
+                            s.policy_require_digit,
+                            s.policy_require_special,
+                            f,
+                        ),
+                        1 => modal::render_settings_lockout(
+                            frame,
+                            &s.lockout_max_attempts,
+                            &s.lockout_window_minutes,
+                            &s.lockout_duration_minutes,
+                            f,
+                        ),
+                        2 => modal::render_settings_tokens(
+                            frame,
+                            &s.access_token_ttl_minutes,
+                            &s.refresh_token_ttl_days,
+                            f,
+                        ),
+                        3 => modal::render_settings_registration(
+                            frame,
+                            s.allow_public_registration,
+                            s.require_email_verified,
+                            f,
+                        ),
+                        4 => modal::render_settings_smtp(
+                            frame,
+                            &s.smtp_host,
+                            &s.smtp_port,
+                            &s.smtp_username,
+                            &s.smtp_password,
+                            &s.smtp_from_name,
+                            &s.smtp_from_email,
+                            s.smtp_use_tls,
+                            s.smtp_enabled,
+                            f,
+                        ),
+                        _ => {}
+                    }
+                }
+                Modal::PostCreateTenant { tenant_name, .. } => {
+                    modal::render_post_create_tenant(frame, tenant_name);
+                }
             }
         })?;
 
@@ -454,57 +413,68 @@ async fn handle_login_key(app: &mut App, code: KeyCode) {
     let AppMode::Login {
         email,
         password,
-        slug,
-        slug_idx,
         field,
+        tenant_choices,
+        tenant_choice_idx,
         ..
     } = app.mode.clone()
     else {
         return;
     };
 
-    let opts = app.tenant_options.clone();
-    let has_opts = !opts.is_empty();
-
     let mk_mode = |email: String,
                    password: String,
-                   slug: String,
-                   slug_idx: usize,
                    field: usize,
-                   error: Option<String>| {
+                   error: Option<String>,
+                   tenant_choices: Option<Vec<(String, String)>>,
+                   tenant_choice_idx: usize| {
         AppMode::Login {
             email,
             password,
-            slug,
-            slug_idx,
             field,
             error,
+            tenant_choices,
+            tenant_choice_idx,
         }
     };
+
+    // When tenant_choices is shown, Up/Down navigates the list; Enter picks one.
+    let has_choices = tenant_choices
+        .as_ref()
+        .map(|c| !c.is_empty())
+        .unwrap_or(false);
 
     match code {
         KeyCode::Char('q') => {
             app.should_quit = true;
         }
         KeyCode::Tab => {
-            app.mode = mk_mode(email, password, slug, slug_idx, (field + 1) % 3, None);
+            app.mode = mk_mode(
+                email,
+                password,
+                (field + 1) % 2,
+                None,
+                tenant_choices,
+                tenant_choice_idx,
+            );
         }
-        // Tenant picker: Up/Down cycle through options
-        KeyCode::Up if field == 2 && has_opts => {
-            let idx = if slug_idx == 0 {
-                opts.len() - 1
+        // Tenant choice navigation when multiple tenants returned
+        KeyCode::Up if has_choices => {
+            let choices = tenant_choices.clone().unwrap();
+            let idx = if tenant_choice_idx == 0 {
+                choices.len() - 1
             } else {
-                slug_idx - 1
+                tenant_choice_idx - 1
             };
-            app.mode = mk_mode(email, password, opts[idx].0.clone(), idx, field, None);
+            app.mode = mk_mode(email, password, field, None, Some(choices), idx);
         }
-        KeyCode::Down if field == 2 && has_opts => {
-            let idx = (slug_idx + 1) % opts.len();
-            app.mode = mk_mode(email, password, opts[idx].0.clone(), idx, field, None);
+        KeyCode::Down if has_choices => {
+            let choices = tenant_choices.clone().unwrap();
+            let idx = (tenant_choice_idx + 1) % choices.len();
+            app.mode = mk_mode(email, password, field, None, Some(choices), idx);
         }
-        // Text input for email/password (and slug when no options available)
         KeyCode::Backspace => {
-            let (mut e, mut p, mut s) = (email, password, slug);
+            let (mut e, mut p) = (email, password);
             match field {
                 0 => {
                     e.pop();
@@ -512,29 +482,73 @@ async fn handle_login_key(app: &mut App, code: KeyCode) {
                 1 => {
                     p.pop();
                 }
-                _ if !has_opts => {
-                    s.pop();
-                }
                 _ => {}
             }
-            app.mode = mk_mode(e, p, s, slug_idx, field, None);
+            app.mode = mk_mode(e, p, field, None, None, 0);
         }
         KeyCode::Char(c) => {
-            let (mut e, mut p, mut s) = (email, password, slug);
+            let (mut e, mut p) = (email, password);
             match field {
                 0 => e.push(c),
                 1 => p.push(c),
-                _ if !has_opts => s.push(c),
                 _ => {}
             }
-            app.mode = mk_mode(e, p, s, slug_idx, field, None);
+            app.mode = mk_mode(e, p, field, None, None, 0);
         }
         KeyCode::Enter => {
             if email.is_empty() || password.is_empty() {
                 return;
             }
+
+            // If tenant choices are shown, use the selected slug and call login directly.
+            if has_choices {
+                if let Some(choices) = &tenant_choices {
+                    let slug = choices[tenant_choice_idx].0.clone();
+                    let client = app.client.clone();
+                    match client.login(&email, &password, &slug).await {
+                        Ok(LoginResult::Token(token)) => {
+                            app.client.set_token(token.clone());
+                            let mut cfg = config_file::load();
+                            cfg.token = Some(token);
+                            let _ = config_file::save(&cfg);
+                            app.mode = AppMode::Admin;
+                            load_tenants(app).await;
+                            check_health(app).await;
+                            let only_master = app.tenants.len() <= 1
+                                && app.tenants.iter().all(|t| t.slug == "master");
+                            if only_master && slug == "master" {
+                                app.modal = Modal::QuickStart(QuickStartState::default());
+                            }
+                        }
+                        Ok(LoginResult::MfaRequired { mfa_token }) => {
+                            app.mode = AppMode::MfaChallenge {
+                                mfa_token,
+                                slug,
+                                code: String::new(),
+                                error: None,
+                            };
+                        }
+                        Ok(LoginResult::TenantChoice(_)) => {
+                            // Shouldn't happen when specifying a slug
+                        }
+                        Err(e) => {
+                            app.mode = mk_mode(
+                                email,
+                                password,
+                                field,
+                                Some(format!("{e}")),
+                                tenant_choices,
+                                tenant_choice_idx,
+                            );
+                        }
+                    }
+                }
+                return;
+            }
+
+            // Universal login — no tenant needed.
             let client = app.client.clone();
-            match client.login(&email, &password, &slug).await {
+            match client.login_universal(&email, &password).await {
                 Ok(LoginResult::Token(token)) => {
                     app.client.set_token(token.clone());
                     let mut cfg = config_file::load();
@@ -546,37 +560,23 @@ async fn handle_login_key(app: &mut App, code: KeyCode) {
                     // Auto-open wizard if only the master tenant exists
                     let only_master =
                         app.tenants.len() <= 1 && app.tenants.iter().all(|t| t.slug == "master");
-                    if only_master && slug == "master" {
+                    if only_master {
                         app.modal = Modal::QuickStart(QuickStartState::default());
                     }
                 }
                 Ok(LoginResult::MfaRequired { mfa_token }) => {
                     app.mode = AppMode::MfaChallenge {
                         mfa_token,
-                        slug,
+                        slug: String::from("master"),
                         code: String::new(),
                         error: None,
                     };
                 }
-                Err(ApiError::Api { status: 401, .. }) => {
-                    app.mode = mk_mode(
-                        email,
-                        password,
-                        slug,
-                        slug_idx,
-                        field,
-                        Some("Invalid credentials".to_string()),
-                    );
+                Ok(LoginResult::TenantChoice(choices)) => {
+                    app.mode = mk_mode(email, password, field, None, Some(choices), 0);
                 }
                 Err(e) => {
-                    app.mode = mk_mode(
-                        email,
-                        password,
-                        slug,
-                        slug_idx,
-                        field,
-                        Some(format!("Error: {e}")),
-                    );
+                    app.mode = mk_mode(email, password, field, Some(format!("{e}")), None, 0);
                 }
             }
         }
@@ -597,18 +597,13 @@ async fn handle_mfa_key(app: &mut App, key: KeyCode) {
 
     match key {
         KeyCode::Esc => {
-            let default_slug = app
-                .tenant_options
-                .first()
-                .map(|(s, _)| s.clone())
-                .unwrap_or_else(|| "master".into());
             app.mode = AppMode::Login {
                 email: String::new(),
                 password: String::new(),
-                slug: default_slug,
-                slug_idx: 0,
                 field: 0,
                 error: None,
+                tenant_choices: None,
+                tenant_choice_idx: 0,
             };
         }
         KeyCode::Backspace => {
@@ -1693,6 +1688,44 @@ async fn handle_key(app: &mut App, code: KeyCode, _mods: KeyModifiers) {
             handle_quickstart_key(app, code).await;
             return;
         }
+        Modal::EditSettings(section) => {
+            handle_edit_settings_key(app, code, section).await;
+            return;
+        }
+        Modal::PostCreateTenant {
+            tenant_id,
+            tenant_name,
+        } => {
+            match code {
+                KeyCode::Enter => {
+                    let tid = tenant_id.clone();
+                    let tname = tenant_name.clone();
+                    app.modal = Modal::None;
+                    // Load tenant data then open QuickStart pre-filled at step 2
+                    load_tenants(app).await;
+                    // Find the newly created tenant and set it active
+                    if let Some(pos) = app.tenants.iter().position(|t| t.id == tid) {
+                        app.tenant_selected = pos;
+                        app.active_tenant_id = Some(tid.clone());
+                        app.focus = crate::app::Focus::Content;
+                        load_all(app).await;
+                    }
+                    app.modal = Modal::QuickStart(QuickStartState {
+                        created_tenant_id: Some(tid),
+                        created_tenant_name: Some(tname),
+                        step: 2,
+                        field: 0,
+                        ..QuickStartState::default()
+                    });
+                }
+                KeyCode::Esc => {
+                    app.modal = Modal::None;
+                    load_tenants(app).await;
+                }
+                _ => {}
+            }
+            return;
+        }
         Modal::None => {}
     }
 
@@ -1761,8 +1794,8 @@ async fn handle_content_key(app: &mut App, code: KeyCode) {
         KeyCode::Esc => {
             app.focus = Focus::Sidebar;
         }
-        // ── Tier 1: main tab navigation (only when NOT inside Settings) ──
-        KeyCode::Left if !app.settings.entered => {
+        // ── Main tab navigation ──
+        KeyCode::Left => {
             app.tab = match app.tab {
                 Tab::Clients => Tab::AuditLog,
                 Tab::Users => Tab::Clients,
@@ -1775,7 +1808,7 @@ async fn handle_content_key(app: &mut App, code: KeyCode) {
             };
             load_current_tab(app).await;
         }
-        KeyCode::Right | KeyCode::Tab if !app.settings.entered => {
+        KeyCode::Right => {
             app.tab = match app.tab {
                 Tab::Clients => Tab::Users,
                 Tab::Users => Tab::Roles,
@@ -1788,37 +1821,16 @@ async fn handle_content_key(app: &mut App, code: KeyCode) {
             };
             load_current_tab(app).await;
         }
-        // Enter Settings (Tier 1 → Tier 2)
-        KeyCode::Enter if app.tab == Tab::Settings && !app.settings.entered => {
-            app.settings.entered = true;
-            app.settings.field = 0;
+        // ── Settings section list navigation ──
+        KeyCode::Up if app.tab == Tab::Settings => {
+            app.settings.section_selected = app.settings.section_selected.saturating_sub(1);
         }
-        // ── Tier 2: inside Settings ──
-        KeyCode::Left if app.settings.entered => {
-            app.settings.section = app.settings.section.saturating_sub(1);
-            app.settings.field = 0;
+        KeyCode::Down if app.tab == Tab::Settings && app.settings.section_selected < 4 => {
+            app.settings.section_selected += 1;
         }
-        KeyCode::Right if app.settings.entered => {
-            if app.settings.section < 4 {
-                app.settings.section += 1;
-            }
-            app.settings.field = 0;
-        }
-        KeyCode::Tab if app.settings.entered => {
-            handle_settings_tab(app);
-        }
-        KeyCode::Char(' ') if app.settings.entered => {
-            handle_settings_toggle(app);
-        }
-        KeyCode::Enter if app.settings.entered => {
-            save_settings_section(app).await;
-        }
-        KeyCode::Backspace if app.settings.entered && !handle_settings_backspace(app) => {
-            // Field was empty (or toggle) — exit to Tier 1
-            app.settings.entered = false;
-        }
-        KeyCode::Char(c) if app.settings.entered => {
-            handle_settings_char(app, c);
+        KeyCode::Enter if app.tab == Tab::Settings => {
+            app.settings.modal_field = 0;
+            app.modal = Modal::EditSettings(app.settings.section_selected as u8);
         }
         KeyCode::Up => match app.tab {
             Tab::Clients => {
@@ -2021,7 +2033,7 @@ async fn handle_content_key(app: &mut App, code: KeyCode) {
                 }
             }
         },
-        KeyCode::Char('r') if app.tab == Tab::Clients => {
+        KeyCode::Char('l') if app.tab == Tab::Clients => {
             if let (Some(c), Some(tid)) =
                 (app.selected_client().cloned(), app.active_tenant_id.clone())
             {
@@ -2033,6 +2045,9 @@ async fn handle_content_key(app: &mut App, code: KeyCode) {
                     app.set_status("Roles only available for M2M (Machine) clients");
                 }
             }
+        }
+        KeyCode::Char('r') => {
+            load_current_tab(app).await;
         }
         KeyCode::Char('m') if app.tab == Tab::Users => {
             if let (Some(u), Some(tid)) =
@@ -2289,8 +2304,11 @@ async fn check_health(app: &mut App) {
 
 async fn perform_create_tenant(app: &mut App, name: String, slug: String) {
     match app.client.create_tenant(&name, &slug).await {
-        Ok(_) => {
-            app.set_status(format!("Tenant '{name}' created"));
+        Ok(t) => {
+            app.modal = Modal::PostCreateTenant {
+                tenant_id: t.id.clone(),
+                tenant_name: name.clone(),
+            };
             load_tenants(app).await;
         }
         Err(e) => app.modal = Modal::Error(format!("{e}")),
@@ -2666,10 +2684,10 @@ fn reset_to_login(app: &mut App, msg: &str) {
     app.mode = AppMode::Login {
         email: String::new(),
         password: String::new(),
-        slug: String::from("master"),
-        slug_idx: 0,
         field: 0,
         error: Some(msg.to_string()),
+        tenant_choices: None,
+        tenant_choice_idx: 0,
     };
     app.active_tenant_id = None;
     app.clients = vec![];
@@ -3125,6 +3143,220 @@ async fn perform_delete(app: &mut App, id: String) {
     }
 }
 
+// ── EditSettings modal key handler ───────────────────────────────────────────
+
+async fn handle_edit_settings_key(app: &mut App, code: KeyCode, section: u8) {
+    let max_fields: usize = match section {
+        0 => 4, // min_length + 3 toggles
+        1 => 3,
+        2 => 2,
+        3 => 2,
+        4 => 8,
+        _ => 1,
+    };
+
+    // Helper: is the current field a toggle?
+    let is_toggle = matches!(
+        (section, app.settings.modal_field),
+        (0, 1) | (0, 2) | (0, 3) | (3, 0) | (3, 1) | (4, 6) | (4, 7)
+    );
+    match code {
+        KeyCode::Esc => {
+            app.modal = Modal::None;
+        }
+        KeyCode::Tab => {
+            app.settings.modal_field = (app.settings.modal_field + 1) % max_fields;
+        }
+        KeyCode::Char(' ') if is_toggle => {
+            let s = &mut app.settings;
+            match (section, s.modal_field) {
+                (0, 1) => s.policy_require_uppercase = !s.policy_require_uppercase,
+                (0, 2) => s.policy_require_digit = !s.policy_require_digit,
+                (0, 3) => s.policy_require_special = !s.policy_require_special,
+                (3, 0) => s.allow_public_registration = !s.allow_public_registration,
+                (3, 1) => s.require_email_verified = !s.require_email_verified,
+                (4, 6) => s.smtp_use_tls = !s.smtp_use_tls,
+                (4, 7) => s.smtp_enabled = !s.smtp_enabled,
+                _ => {}
+            }
+        }
+        KeyCode::Backspace if !is_toggle => {
+            let s = &mut app.settings;
+            match (section, s.modal_field) {
+                (0, 0) => {
+                    s.policy_min_length.pop();
+                }
+                (1, 0) => {
+                    s.lockout_max_attempts.pop();
+                }
+                (1, 1) => {
+                    s.lockout_window_minutes.pop();
+                }
+                (1, 2) => {
+                    s.lockout_duration_minutes.pop();
+                }
+                (2, 0) => {
+                    s.access_token_ttl_minutes.pop();
+                }
+                (2, 1) => {
+                    s.refresh_token_ttl_days.pop();
+                }
+                (4, 0) => {
+                    s.smtp_host.pop();
+                }
+                (4, 1) => {
+                    s.smtp_port.pop();
+                }
+                (4, 2) => {
+                    s.smtp_username.pop();
+                }
+                (4, 3) => {
+                    s.smtp_password.pop();
+                }
+                (4, 4) => {
+                    s.smtp_from_name.pop();
+                }
+                (4, 5) => {
+                    s.smtp_from_email.pop();
+                }
+                _ => {}
+            }
+        }
+        KeyCode::Char(c) if !is_toggle => {
+            let s = &mut app.settings;
+            // SMTP text fields accept arbitrary chars; others are digits-only
+            if section == 4 {
+                match s.modal_field {
+                    0 => s.smtp_host.push(c),
+                    1 if c.is_ascii_digit() => s.smtp_port.push(c),
+                    2 => s.smtp_username.push(c),
+                    3 => s.smtp_password.push(c),
+                    4 => s.smtp_from_name.push(c),
+                    5 => s.smtp_from_email.push(c),
+                    _ => {}
+                }
+            } else if c.is_ascii_digit() {
+                match (section, s.modal_field) {
+                    (0, 0) => s.policy_min_length.push(c),
+                    (1, 0) => s.lockout_max_attempts.push(c),
+                    (1, 1) => s.lockout_window_minutes.push(c),
+                    (1, 2) => s.lockout_duration_minutes.push(c),
+                    (2, 0) => s.access_token_ttl_minutes.push(c),
+                    (2, 1) => s.refresh_token_ttl_days.push(c),
+                    _ => {}
+                }
+            }
+        }
+        KeyCode::Enter => {
+            // Save then close
+            let Some(tid) = app.active_tenant_id.clone() else {
+                app.modal = Modal::None;
+                return;
+            };
+            match section {
+                0 => {
+                    let min_len: i32 = app.settings.policy_min_length.parse().unwrap_or(8);
+                    let uu = app.settings.policy_require_uppercase;
+                    let dd = app.settings.policy_require_digit;
+                    let ss = app.settings.policy_require_special;
+                    match app
+                        .client
+                        .put_password_policy(&tid, min_len, uu, dd, ss)
+                        .await
+                    {
+                        Ok(_) => app.set_status("Password policy saved"),
+                        Err(e) => {
+                            app.modal = Modal::Error(format!("{e}"));
+                            return;
+                        }
+                    }
+                }
+                1 => {
+                    let max_att: i32 = app.settings.lockout_max_attempts.parse().unwrap_or(5);
+                    let win: i32 = app.settings.lockout_window_minutes.parse().unwrap_or(15);
+                    let dur: i32 = app.settings.lockout_duration_minutes.parse().unwrap_or(15);
+                    match app.client.put_lockout_policy(&tid, max_att, win, dur).await {
+                        Ok(_) => app.set_status("Lockout policy saved"),
+                        Err(e) => {
+                            app.modal = Modal::Error(format!("{e}"));
+                            return;
+                        }
+                    }
+                }
+                2 => {
+                    let acc: i32 = app.settings.access_token_ttl_minutes.parse().unwrap_or(15);
+                    let ref_days: i32 = app.settings.refresh_token_ttl_days.parse().unwrap_or(30);
+                    match app.client.put_token_ttl(&tid, acc, ref_days).await {
+                        Ok(_) => app.set_status("Token TTL saved"),
+                        Err(e) => {
+                            app.modal = Modal::Error(format!("{e}"));
+                            return;
+                        }
+                    }
+                }
+                3 => {
+                    let allow = app.settings.allow_public_registration;
+                    let require = app.settings.require_email_verified;
+                    match app
+                        .client
+                        .put_registration_policy(&tid, allow, require)
+                        .await
+                    {
+                        Ok(_) => app.set_status("Registration policy saved"),
+                        Err(e) => {
+                            app.modal = Modal::Error(format!("{e}"));
+                            return;
+                        }
+                    }
+                }
+                4 => {
+                    let port: i32 = app.settings.smtp_port.parse().unwrap_or(587);
+                    let pw = if app.settings.smtp_password.is_empty() {
+                        None
+                    } else {
+                        Some(app.settings.smtp_password.as_str())
+                    };
+                    let host = app.settings.smtp_host.clone();
+                    let uname = app.settings.smtp_username.clone();
+                    let fname = app.settings.smtp_from_name.clone();
+                    let femail = app.settings.smtp_from_email.clone();
+                    let use_tls = app.settings.smtp_use_tls;
+                    let smtp_enabled = app.settings.smtp_enabled;
+                    match app
+                        .client
+                        .put_smtp(
+                            &tid,
+                            &host,
+                            port,
+                            &uname,
+                            pw,
+                            &fname,
+                            &femail,
+                            use_tls,
+                            smtp_enabled,
+                        )
+                        .await
+                    {
+                        Ok(_) => {
+                            app.settings.smtp_password_set = !app.settings.smtp_password.is_empty()
+                                || app.settings.smtp_password_set;
+                            app.settings.smtp_password = String::new();
+                            app.set_status("SMTP config saved");
+                        }
+                        Err(e) => {
+                            app.modal = Modal::Error(format!("{e}"));
+                            return;
+                        }
+                    }
+                }
+                _ => {}
+            }
+            app.modal = Modal::None;
+        }
+        _ => {}
+    }
+}
+
 // ── Settings tab helpers ──────────────────────────────────────────────────────
 
 async fn load_settings(app: &mut App, tid: String) {
@@ -3168,192 +3400,4 @@ async fn load_settings(app: &mut App, tid: String) {
         app.settings.smtp_password_set = s.password_set;
     }
     app.settings.loading = false;
-}
-
-fn handle_settings_tab(app: &mut App) {
-    let max = match app.settings.section {
-        0 => 4, // min_length + 3 toggles
-        1 => 3, // 3 numeric fields
-        2 => 2, // 2 numeric fields
-        3 => 2, // 2 toggles
-        4 => 8, // host, port, username, password, from_name, from_email, use_tls, enabled
-        _ => 1,
-    };
-    app.settings.field = (app.settings.field + 1) % max;
-}
-
-fn handle_settings_toggle(app: &mut App) {
-    let s = &mut app.settings;
-    match s.section {
-        0 => match s.field {
-            1 => s.policy_require_uppercase = !s.policy_require_uppercase,
-            2 => s.policy_require_digit = !s.policy_require_digit,
-            3 => s.policy_require_special = !s.policy_require_special,
-            _ => {}
-        },
-        3 => match s.field {
-            0 => s.allow_public_registration = !s.allow_public_registration,
-            1 => s.require_email_verified = !s.require_email_verified,
-            _ => {}
-        },
-        4 => match s.field {
-            6 => s.smtp_use_tls = !s.smtp_use_tls,
-            7 => s.smtp_enabled = !s.smtp_enabled,
-            _ => {}
-        },
-        _ => {}
-    }
-}
-
-// Returns true if a character was deleted, false if field was empty/toggle (caller should exit tier).
-fn handle_settings_backspace(app: &mut App) -> bool {
-    let s = &mut app.settings;
-    match s.section {
-        0 => match s.field {
-            0 => s.policy_min_length.pop().is_some(),
-            _ => false, // toggles — exit
-        },
-        1 => match s.field {
-            0 => s.lockout_max_attempts.pop().is_some(),
-            1 => s.lockout_window_minutes.pop().is_some(),
-            2 => s.lockout_duration_minutes.pop().is_some(),
-            _ => false,
-        },
-        2 => match s.field {
-            0 => s.access_token_ttl_minutes.pop().is_some(),
-            1 => s.refresh_token_ttl_days.pop().is_some(),
-            _ => false,
-        },
-        3 => false, // all toggles — exit
-        4 => match s.field {
-            0 => s.smtp_host.pop().is_some(),
-            1 => s.smtp_port.pop().is_some(),
-            2 => s.smtp_username.pop().is_some(),
-            3 => s.smtp_password.pop().is_some(),
-            4 => s.smtp_from_name.pop().is_some(),
-            5 => s.smtp_from_email.pop().is_some(),
-            _ => false, // toggles — exit
-        },
-        _ => false,
-    }
-}
-
-fn handle_settings_char(app: &mut App, c: char) {
-    let s = &mut app.settings;
-    // SMTP fields accept arbitrary printable chars; other sections are digits-only.
-    if s.section == 4 {
-        match s.field {
-            0 => s.smtp_host.push(c),
-            1 if c.is_ascii_digit() => s.smtp_port.push(c),
-            2 => s.smtp_username.push(c),
-            3 => s.smtp_password.push(c),
-            4 => s.smtp_from_name.push(c),
-            5 => s.smtp_from_email.push(c),
-            _ => {}
-        }
-        return;
-    }
-    if !c.is_ascii_digit() {
-        return;
-    }
-    match s.section {
-        0 if s.field == 0 => {
-            s.policy_min_length.push(c);
-        }
-        1 => match s.field {
-            0 => s.lockout_max_attempts.push(c),
-            1 => s.lockout_window_minutes.push(c),
-            2 => s.lockout_duration_minutes.push(c),
-            _ => {}
-        },
-        2 => match s.field {
-            0 => s.access_token_ttl_minutes.push(c),
-            1 => s.refresh_token_ttl_days.push(c),
-            _ => {}
-        },
-        _ => {}
-    }
-}
-
-async fn save_settings_section(app: &mut App) {
-    let Some(tid) = app.active_tenant_id.clone() else {
-        return;
-    };
-    match app.settings.section {
-        0 => {
-            let min_len: i32 = app.settings.policy_min_length.parse().unwrap_or(8);
-            let uu = app.settings.policy_require_uppercase;
-            let dd = app.settings.policy_require_digit;
-            let ss = app.settings.policy_require_special;
-            match app
-                .client
-                .put_password_policy(&tid, min_len, uu, dd, ss)
-                .await
-            {
-                Ok(_) => app.set_status("Password policy saved"),
-                Err(e) => app.modal = Modal::Error(format!("{e}")),
-            }
-        }
-        1 => {
-            let max_att: i32 = app.settings.lockout_max_attempts.parse().unwrap_or(5);
-            let win: i32 = app.settings.lockout_window_minutes.parse().unwrap_or(15);
-            let dur: i32 = app.settings.lockout_duration_minutes.parse().unwrap_or(15);
-            match app.client.put_lockout_policy(&tid, max_att, win, dur).await {
-                Ok(_) => app.set_status("Lockout policy saved"),
-                Err(e) => app.modal = Modal::Error(format!("{e}")),
-            }
-        }
-        2 => {
-            let acc: i32 = app.settings.access_token_ttl_minutes.parse().unwrap_or(15);
-            let ref_days: i32 = app.settings.refresh_token_ttl_days.parse().unwrap_or(30);
-            match app.client.put_token_ttl(&tid, acc, ref_days).await {
-                Ok(_) => app.set_status("Token TTL saved"),
-                Err(e) => app.modal = Modal::Error(format!("{e}")),
-            }
-        }
-        3 => {
-            let allow = app.settings.allow_public_registration;
-            let require = app.settings.require_email_verified;
-            match app
-                .client
-                .put_registration_policy(&tid, allow, require)
-                .await
-            {
-                Ok(_) => app.set_status("Registration policy saved"),
-                Err(e) => app.modal = Modal::Error(format!("{e}")),
-            }
-        }
-        4 => {
-            let port: i32 = app.settings.smtp_port.parse().unwrap_or(587);
-            let pw = if app.settings.smtp_password.is_empty() {
-                None
-            } else {
-                Some(app.settings.smtp_password.as_str())
-            };
-            match app
-                .client
-                .put_smtp(
-                    &tid,
-                    &app.settings.smtp_host.clone(),
-                    port,
-                    &app.settings.smtp_username.clone(),
-                    pw,
-                    &app.settings.smtp_from_name.clone(),
-                    &app.settings.smtp_from_email.clone(),
-                    app.settings.smtp_use_tls,
-                    app.settings.smtp_enabled,
-                )
-                .await
-            {
-                Ok(_) => {
-                    app.settings.smtp_password_set =
-                        !app.settings.smtp_password.is_empty() || app.settings.smtp_password_set;
-                    app.settings.smtp_password = String::new();
-                    app.set_status("SMTP config saved");
-                }
-                Err(e) => app.modal = Modal::Error(format!("{e}")),
-            }
-        }
-        _ => {}
-    }
 }

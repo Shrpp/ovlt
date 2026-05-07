@@ -24,8 +24,7 @@ migrate:
 
 cli:
 	@command -v cargo >/dev/null || { echo "cargo not found"; exit 1; }
-	cargo run -p ovlt-cli -- \
-		--url $${OVLT_URL:-http://localhost:3000}
+	cargo run -p ovlt-cli connect $${OVLT_URL:-http://localhost:3000} && cargo run -p ovlt-cli serve
 
 test-oidc:
 	@bash scripts/test-oidc.sh

@@ -4,10 +4,20 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum ApiError {
-    #[error("HTTP error: {0}")]
+    #[error("{}", friendly_http_error(.0))]
     Http(#[from] reqwest::Error),
-    #[error("API error {status}: {message}")]
+    #[error("{message}")]
     Api { status: u16, message: String },
+}
+
+fn friendly_http_error(e: &reqwest::Error) -> String {
+    if e.is_connect() {
+        "Could not connect to the server. Check the URL and try again.".to_string()
+    } else if e.is_timeout() {
+        "Request timed out. The server may be busy.".to_string()
+    } else {
+        "Network error. Check your connection.".to_string()
+    }
 }
 
 pub type ApiResult<T> = Result<T, ApiError>;
@@ -57,12 +67,51 @@ impl Client {
         if status.is_success() {
             Ok(resp.json::<T>().await?)
         } else {
-            let message = resp
-                .json::<serde_json::Value>()
-                .await
-                .ok()
-                .and_then(|v| v["error"].as_str().map(|s| s.to_owned()))
-                .unwrap_or_else(|| status.to_string());
+            let body: serde_json::Value = resp.json().await.unwrap_or_default();
+
+            let message = if let Some(fields) = body.get("fields").and_then(|f| f.as_object()) {
+                fields
+                    .iter()
+                    .map(|(k, v)| {
+                        let field_name = k
+                            .chars()
+                            .next()
+                            .map(|c| c.to_uppercase().collect::<String>() + &k[1..])
+                            .unwrap_or_default();
+                        format!("{}: {}", field_name, v.as_str().unwrap_or("Invalid"))
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            } else {
+                match body.get("error").and_then(|e| e.as_str()).unwrap_or("") {
+                    "unauthorized" => match status.as_u16() {
+                        401 => "Incorrect email or password".to_string(),
+                        _ => "You don't have permission to perform this action".to_string(),
+                    },
+                    "forbidden" => "You don't have permission to perform this action".to_string(),
+                    "not_found" => "Not found".to_string(),
+                    "already_exists" => "This already exists".to_string(),
+                    "too_many_requests" => {
+                        "Too many attempts. Please wait before trying again".to_string()
+                    }
+                    "server_error" => "Something went wrong. Please try again".to_string(),
+                    "invalid_input" => body
+                        .get("message")
+                        .and_then(|m| m.as_str())
+                        .unwrap_or("Check your input")
+                        .to_string(),
+                    _ => match status.as_u16() {
+                        0 => "Could not connect to the server".to_string(),
+                        408 | 504 => "Request timed out".to_string(),
+                        _ => body
+                            .get("message")
+                            .and_then(|m| m.as_str())
+                            .unwrap_or("An unexpected error occurred")
+                            .to_string(),
+                    },
+                }
+            };
+
             Err(ApiError::Api {
                 status: status.as_u16(),
                 message,
@@ -87,6 +136,39 @@ impl Client {
             .send()
             .await?;
         let body: LoginResp = self.check(resp).await?;
+        if body.mfa_required == Some(true) {
+            if let Some(mfa_token) = body.mfa_token {
+                return Ok(LoginResult::MfaRequired { mfa_token });
+            }
+        }
+        Ok(LoginResult::Token(body.access_token.unwrap_or_default()))
+    }
+
+    pub async fn login_universal(&self, email: &str, password: &str) -> ApiResult<LoginResult> {
+        #[derive(Deserialize)]
+        struct UniversalResp {
+            access_token: Option<String>,
+            mfa_required: Option<bool>,
+            mfa_token: Option<String>,
+            tenants: Option<Vec<TenantEntry>>,
+        }
+        #[derive(Deserialize)]
+        struct TenantEntry {
+            slug: String,
+            name: String,
+        }
+        let resp = self
+            .inner
+            .post(format!("{}/auth/login/universal", self.base_url))
+            .json(&serde_json::json!({ "email": email, "password": password }))
+            .send()
+            .await?;
+        let body: UniversalResp = self.check(resp).await?;
+        if let Some(tenants) = body.tenants {
+            return Ok(LoginResult::TenantChoice(
+                tenants.into_iter().map(|t| (t.slug, t.name)).collect(),
+            ));
+        }
         if body.mfa_required == Some(true) {
             if let Some(mfa_token) = body.mfa_token {
                 return Ok(LoginResult::MfaRequired { mfa_token });
@@ -1029,6 +1111,7 @@ impl Client {
 pub enum LoginResult {
     Token(String),
     MfaRequired { mfa_token: String },
+    TenantChoice(Vec<(String, String)>), // (slug, name)
 }
 
 #[derive(Debug, Clone, Deserialize)]
