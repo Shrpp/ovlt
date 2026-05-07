@@ -295,7 +295,11 @@ pub async fn login_universal(
     .await
     .unwrap_or_default();
 
-    let secure = if state.config.is_production() { "; Secure" } else { "" };
+    let secure = if state.config.is_production() {
+        "; Secure"
+    } else {
+        ""
+    };
     let cookie = format!(
         "ovlt_session={session_id}; HttpOnly; SameSite=Lax{secure}; Path=/; Max-Age={}",
         settings.refresh_token_ttl_days * 86400

@@ -98,7 +98,9 @@ pub async fn run(db: &DatabaseConnection, config: &Config) -> Result<(), AppErro
         eprintln!("  ║  curl -s -X POST http://localhost:3000/auth/login \\          ║");
         eprintln!("  ║    -H 'x-ovlt-tenant-slug: {slug}' \\", slug = slug);
         eprintln!("  ║    -H 'Content-Type: application/json' \\                    ║");
-        eprintln!("  ║    -d '{{\"email\":\"{email_normalized}\",\"password\":\"{password}\"}}' | jq");
+        eprintln!(
+            "  ║    -d '{{\"email\":\"{email_normalized}\",\"password\":\"{password}\"}}' | jq"
+        );
         eprintln!("  ╚══════════════════════════════════════════════════════════════╝");
         eprintln!();
     }

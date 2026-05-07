@@ -70,9 +70,7 @@ impl Config {
         };
 
         if dev_mode && environment == Environment::Production {
-            return Err(
-                "OVLT_DEV_MODE=1 cannot be used with ENVIRONMENT=production".into(),
-            );
+            return Err("OVLT_DEV_MODE=1 cannot be used with ENVIRONMENT=production".into());
         }
 
         let (jwt_secret, master_encryption_key, tenant_wrap_key, generated) = {
