@@ -22,6 +22,10 @@ OAuth2 + OIDC · Multi-tenant · Zero-knowledge encrypted · Self-hosted on your
 [badge-docs]: https://img.shields.io/badge/docs-Mintlify-00d4ff?style=flat-square
 [badge-rust]: https://img.shields.io/badge/built_with-Rust-f0ebe4?style=flat-square&logo=rust&logoColor=white
 
+<p align="center">
+  <img src="https://cdn.ovlt.tech/demo_tui.gif" alt="Demo OVLT" width="600" />
+</p>
+
 </div>
 
 ---
