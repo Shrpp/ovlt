@@ -8,7 +8,13 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use validator::Validate;
 
-use crate::{db, error::AppError, handlers::admin_auth, services::client_service, state::AppState};
+use crate::{
+    db,
+    error::{validation_to_app_error, AppError},
+    handlers::admin_auth,
+    services::client_service,
+    state::AppState,
+};
 
 fn extract_tenant_id(headers: &HeaderMap) -> Result<Uuid, AppError> {
     headers
@@ -76,9 +82,7 @@ pub async fn create_client(
     )?;
     let tenant_id = extract_tenant_id(&headers)?;
 
-    payload
-        .validate()
-        .map_err(|e| AppError::InvalidInput(e.to_string()))?;
+    payload.validate().map_err(validation_to_app_error)?;
 
     let is_confidential = payload.is_confidential.unwrap_or(true);
     let grant_types = payload
@@ -230,9 +234,7 @@ pub async fn update_client(
     )?;
     let tenant_id = extract_tenant_id(&headers)?;
 
-    payload
-        .validate()
-        .map_err(|e| AppError::InvalidInput(e.to_string()))?;
+    payload.validate().map_err(validation_to_app_error)?;
 
     let grant_types = payload
         .grant_types

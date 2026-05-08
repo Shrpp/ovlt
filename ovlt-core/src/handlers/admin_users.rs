@@ -11,7 +11,7 @@ use validator::Validate;
 use crate::{
     db,
     entity::one_time_tokens,
-    error::AppError,
+    error::{validation_to_app_error, AppError},
     handlers::admin_auth,
     services::{mfa_service, one_time_token_service, tenant_service, user_service},
     state::AppState,
@@ -138,9 +138,7 @@ pub async fn create_user(
     )?;
     let tenant_id = extract_tenant_id(&headers)?;
 
-    payload
-        .validate()
-        .map_err(|e| AppError::InvalidInput(e.to_string()))?;
+    payload.validate().map_err(validation_to_app_error)?;
 
     let tenant = tenant_service::find_active(&state.db, tenant_id).await?;
     let tenant_key = hefesto::decrypt(
@@ -233,9 +231,7 @@ pub async fn update_user(
     )?;
     let tenant_id = extract_tenant_id(&headers)?;
 
-    payload
-        .validate()
-        .map_err(|e| AppError::InvalidInput(e.to_string()))?;
+    payload.validate().map_err(validation_to_app_error)?;
 
     let tenant = tenant_service::find_active(&state.db, tenant_id).await?;
     let tenant_key = hefesto::decrypt(

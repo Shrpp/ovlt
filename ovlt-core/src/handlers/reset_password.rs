@@ -6,7 +6,7 @@ use validator::Validate;
 use crate::{
     db,
     entity::{one_time_tokens, users},
-    error::AppError,
+    error::{validation_to_app_error, AppError},
     middleware::tenant::TenantContext,
     services::{one_time_token_service, password_policy_service, token_service, user_service},
     state::AppState,
@@ -38,9 +38,7 @@ pub async fn reset_password(
     Extension(ctx): Extension<TenantContext>,
     Json(payload): Json<ResetPasswordRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    payload
-        .validate()
-        .map_err(|e| AppError::InvalidInput(e.to_string()))?;
+    payload.validate().map_err(validation_to_app_error)?;
 
     // Validate and consume the token (marks it used, returns the record).
     let record = one_time_token_service::consume(

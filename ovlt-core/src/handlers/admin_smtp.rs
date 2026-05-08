@@ -6,7 +6,10 @@ use uuid::Uuid;
 use validator::Validate;
 
 use crate::{
-    entity::tenant_smtp_config, error::AppError, handlers::admin_auth, services::tenant_service,
+    entity::tenant_smtp_config,
+    error::{validation_to_app_error, AppError},
+    handlers::admin_auth,
+    services::tenant_service,
     state::AppState,
 };
 
@@ -124,8 +127,7 @@ pub async fn put_smtp(
     require_admin(&state, &headers)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
-    req.validate()
-        .map_err(|e| AppError::InvalidInput(e.to_string()))?;
+    req.validate().map_err(validation_to_app_error)?;
 
     let tenant = tenant_service::find_active(&state.db, tenant_id).await?;
     let tenant_key = hefesto::decrypt(

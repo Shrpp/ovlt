@@ -10,7 +10,11 @@ use uuid::Uuid;
 use validator::Validate;
 
 use crate::{
-    entity::tenants, error::AppError, handlers::admin_auth, services::seed_service, state::AppState,
+    entity::tenants,
+    error::{validation_to_app_error, AppError},
+    handlers::admin_auth,
+    services::seed_service,
+    state::AppState,
 };
 
 #[derive(Debug, Deserialize, Validate, utoipa::ToSchema)]
@@ -70,9 +74,7 @@ pub async fn create_tenant(
         state.master_tenant_id,
     )?;
 
-    payload
-        .validate()
-        .map_err(|e| AppError::InvalidInput(e.to_string()))?;
+    payload.validate().map_err(validation_to_app_error)?;
     validate_slug(&payload.slug)?;
 
     let slug_exists = tenants::Entity::find()

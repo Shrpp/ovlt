@@ -9,7 +9,11 @@ use uuid::Uuid;
 use validator::Validate;
 
 use crate::{
-    db, error::AppError, handlers::admin_auth, services::permission_service, state::AppState,
+    db,
+    error::{validation_to_app_error, AppError},
+    handlers::admin_auth,
+    services::permission_service,
+    state::AppState,
 };
 
 fn extract_tenant_id(headers: &HeaderMap) -> Result<Uuid, AppError> {
@@ -122,9 +126,7 @@ pub async fn create_permission(
     require_admin(&state, &headers)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
-    payload
-        .validate()
-        .map_err(|e| AppError::InvalidInput(e.to_string()))?;
+    payload.validate().map_err(validation_to_app_error)?;
 
     let txn = db::begin_tenant_txn(&state.db, tenant_id).await?;
     let perm = permission_service::create(
@@ -175,9 +177,7 @@ pub async fn update_permission(
     require_admin(&state, &headers)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
-    payload
-        .validate()
-        .map_err(|e| AppError::InvalidInput(e.to_string()))?;
+    payload.validate().map_err(validation_to_app_error)?;
 
     let txn = db::begin_tenant_txn(&state.db, tenant_id).await?;
     permission_service::update(

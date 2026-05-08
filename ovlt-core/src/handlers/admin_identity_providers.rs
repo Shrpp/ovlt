@@ -10,7 +10,7 @@ use validator::Validate;
 
 use crate::{
     db,
-    error::AppError,
+    error::{validation_to_app_error, AppError},
     handlers::admin_auth,
     services::{identity_provider_service, tenant_service},
     state::AppState,
@@ -136,9 +136,7 @@ pub async fn create_idp(
     require_admin(&state, &headers)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
-    payload
-        .validate()
-        .map_err(|e| AppError::InvalidInput(e.to_string()))?;
+    payload.validate().map_err(validation_to_app_error)?;
 
     let tenant_record = tenant_service::find_active(&state.db, tenant_id).await?;
     let tenant_key = hefesto::decrypt(
@@ -212,9 +210,7 @@ pub async fn update_idp(
     require_admin(&state, &headers)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
-    payload
-        .validate()
-        .map_err(|e| AppError::InvalidInput(e.to_string()))?;
+    payload.validate().map_err(validation_to_app_error)?;
 
     let tenant_record = tenant_service::find_active(&state.db, tenant_id).await?;
     let tenant_key = hefesto::decrypt(

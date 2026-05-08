@@ -6,7 +6,7 @@ use validator::Validate;
 use crate::{
     db,
     entity::users,
-    error::AppError,
+    error::{validation_to_app_error, AppError},
     middleware::tenant::TenantContext,
     services::{one_time_token_service, user_service},
     state::AppState,
@@ -42,9 +42,7 @@ pub async fn verify_email(
     Extension(ctx): Extension<TenantContext>,
     Json(payload): Json<VerifyOtpRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    payload
-        .validate()
-        .map_err(|e| AppError::InvalidInput(e.to_string()))?;
+    payload.validate().map_err(validation_to_app_error)?;
 
     let email_normalized = payload.email.trim().to_lowercase();
     let email_lookup = hefesto::hash_for_lookup(&email_normalized, &ctx.tenant_key)?;

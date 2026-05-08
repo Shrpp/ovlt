@@ -8,7 +8,13 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use validator::Validate;
 
-use crate::{db, error::AppError, handlers::admin_auth, services::role_service, state::AppState};
+use crate::{
+    db,
+    error::{validation_to_app_error, AppError},
+    handlers::admin_auth,
+    services::role_service,
+    state::AppState,
+};
 
 fn extract_tenant_id(headers: &HeaderMap) -> Result<Uuid, AppError> {
     headers
@@ -120,9 +126,7 @@ pub async fn create_role(
     require_admin(&state, &headers)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
-    payload
-        .validate()
-        .map_err(|e| AppError::InvalidInput(e.to_string()))?;
+    payload.validate().map_err(validation_to_app_error)?;
 
     let txn = db::begin_tenant_txn(&state.db, tenant_id).await?;
     let role = role_service::create(
@@ -173,9 +177,7 @@ pub async fn update_role(
     require_admin(&state, &headers)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
-    payload
-        .validate()
-        .map_err(|e| AppError::InvalidInput(e.to_string()))?;
+    payload.validate().map_err(validation_to_app_error)?;
 
     let txn = db::begin_tenant_txn(&state.db, tenant_id).await?;
     role_service::update(

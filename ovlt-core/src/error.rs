@@ -125,3 +125,40 @@ impl IntoResponse for AppError {
         }
     }
 }
+
+pub fn validation_to_app_error(e: validator::ValidationErrors) -> AppError {
+    let fields = e
+        .field_errors()
+        .into_iter()
+        .map(|(field, errors)| {
+            let msg = errors
+                .first()
+                .map(|ve| match ve.code.as_ref() {
+                    "email" => "Must be a valid email address".to_string(),
+                    "url" => "Must be a valid URL".to_string(),
+                    "length" => {
+                        let min = ve.params.get("min").and_then(|v| v.as_u64()).unwrap_or(0);
+                        let max = ve.params.get("max").and_then(|v| v.as_u64());
+                        if min <= 1 {
+                            match max {
+                                Some(m) => format!("Must be at most {m} characters"),
+                                None => "Must not be empty".to_string(),
+                            }
+                        } else if let Some(m) = max {
+                            if m == min {
+                                format!("Must be exactly {min} characters")
+                            } else {
+                                format!("Must be between {min} and {m} characters")
+                            }
+                        } else {
+                            format!("Must be at least {min} characters")
+                        }
+                    }
+                    _ => ve.message.as_deref().unwrap_or("Invalid value").to_string(),
+                })
+                .unwrap_or_else(|| "Invalid value".to_string());
+            (field.to_string(), msg)
+        })
+        .collect();
+    AppError::Validation(fields)
+}
