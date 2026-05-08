@@ -10,7 +10,7 @@ use validator::Validate;
 
 use crate::{
     db,
-    error::AppError,
+    error::{validation_to_app_error, AppError},
     middleware::tenant::TenantContext,
     services::{
         audit_service, email_service, one_time_token_service, password_policy_service,
@@ -54,24 +54,7 @@ pub async fn register(
     Extension(ctx): Extension<TenantContext>,
     Json(payload): Json<RegisterRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    if let Err(errs) = payload.validate() {
-        let fields: Vec<(String, String)> = errs
-            .field_errors()
-            .iter()
-            .map(|(field, errors)| {
-                let msg = match *field {
-                    "email" => "Enter a valid email address".to_string(),
-                    "password" => "Password must be at least 8 characters".to_string(),
-                    _ => errors
-                        .first()
-                        .and_then(|e| e.message.as_ref().map(|m| m.to_string()))
-                        .unwrap_or_else(|| "Invalid value".to_string()),
-                };
-                (field.to_string(), msg)
-            })
-            .collect();
-        return Err(AppError::Validation(fields));
-    }
+    payload.validate().map_err(validation_to_app_error)?;
 
     let settings = tenant_settings_service::get(&state.db, ctx.tenant_id).await?;
     if !settings.allow_public_registration {
