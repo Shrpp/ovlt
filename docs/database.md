@@ -225,6 +225,14 @@ erDiagram
         bool enabled
     }
 
+    mfa_backup_codes {
+        uuid id PK
+        uuid tenant_id FK
+        uuid user_id FK
+        text code_hash "SHA-256 — plaintext never stored"
+        timestamptz used_at "null = unused"
+    }
+
     webauthn_credential {
         uuid id PK
         uuid tenant_id FK
@@ -307,6 +315,7 @@ erDiagram
     users               ||--o{ oauth_accounts       : "has"
     users               ||--o{ one_time_tokens      : "has"
     users               ||--o{ totp_secrets         : "has"
+    users               ||--o{ mfa_backup_codes     : "has"
     users               ||--o{ webauthn_credential  : "has"
     users               ||--o{ authorization_codes  : "has"
 
@@ -338,6 +347,7 @@ erDiagram
 | `tenant_smtp_config` | Per-tenant SMTP — `password_enc` is encrypted |
 | `one_time_tokens` | Email verification and password-reset tokens (hashed) |
 | `totp_secrets` | TOTP secrets per user (encrypted) |
+| `mfa_backup_codes` | Single-use MFA recovery codes (hashed, RLS-protected) |
 | `identity_providers` | Per-tenant social login config (Google, GitHub) |
 | `authorization_codes` | OIDC authorization codes (PKCE S256, single-use) |
 | `revoked_jtis` | Access token blocklist (JTI + expiry) |

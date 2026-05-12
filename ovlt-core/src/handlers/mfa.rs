@@ -172,9 +172,68 @@ pub async fn mfa_disable(
     }
 
     mfa_service::disable(&txn, ctx.tenant_id, auth.user_id).await?;
+    mfa_service::delete_backup_codes(&txn, ctx.tenant_id, auth.user_id).await?;
     txn.commit().await?;
 
     Ok(StatusCode::NO_CONTENT)
+}
+
+// ── Backup codes (protected) ─────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
+pub struct BackupCodesRequest {
+    pub code: String,
+}
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct BackupCodesResponse {
+    pub codes: Vec<String>,
+}
+
+#[utoipa::path(
+    post,
+    path = "/auth/mfa/backup-codes",
+    tag = "auth",
+    request_body = BackupCodesRequest,
+    responses(
+        (status = 200, description = "Backup codes generated", body = BackupCodesResponse),
+        (status = 401, description = "Invalid TOTP code or MFA not enabled"),
+    ),
+    security(
+        ("bearer_auth" = [])
+    ),
+    params(
+        ("X-Tenant-ID" = String, Header, description = "Tenant UUID"),
+    )
+)]
+pub async fn mfa_backup_codes_generate(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Extension(ctx): Extension<TenantContext>,
+    Json(payload): Json<BackupCodesRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    let txn = db::begin_tenant_txn(&state.db, ctx.tenant_id).await?;
+
+    let record = mfa_service::find_enabled(&txn, ctx.tenant_id, auth.user_id)
+        .await?
+        .ok_or(AppError::NotFound)?;
+
+    let secret = hefesto::decrypt(
+        &record.secret_enc,
+        &ctx.tenant_key,
+        &state.config.master_encryption_key,
+    )?;
+
+    if !mfa_service::verify_code(&secret, &payload.code) {
+        txn.commit().await?;
+        return Err(AppError::Unauthorized);
+    }
+
+    let codes =
+        mfa_service::generate_backup_codes(&txn, ctx.tenant_id, auth.user_id).await?;
+    txn.commit().await?;
+
+    Ok(Json(BackupCodesResponse { codes }))
 }
 
 // ── Challenge (public, requires mfa_token) ───────────────────────────────────
@@ -182,7 +241,8 @@ pub async fn mfa_disable(
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct ChallengeRequest {
     pub mfa_token: String,
-    pub code: String,
+    pub code: Option<String>,
+    pub backup_code: Option<String>,
 }
 
 #[utoipa::path(
@@ -218,13 +278,20 @@ pub async fn mfa_challenge(
         .await?
         .ok_or(AppError::Unauthorized)?;
 
-    let secret = hefesto::decrypt(
-        &record.secret_enc,
-        &ctx.tenant_key,
-        &state.config.master_encryption_key,
-    )?;
+    let verified = if let Some(ref totp_code) = payload.code {
+        let secret = hefesto::decrypt(
+            &record.secret_enc,
+            &ctx.tenant_key,
+            &state.config.master_encryption_key,
+        )?;
+        mfa_service::verify_code(&secret, totp_code)
+    } else if let Some(ref bcode) = payload.backup_code {
+        mfa_service::consume_backup_code(&txn, ctx.tenant_id, user_id, bcode).await?
+    } else {
+        false
+    };
 
-    if !mfa_service::verify_code(&secret, &payload.code) {
+    if !verified {
         txn.commit().await?;
         return Err(AppError::Unauthorized);
     }
@@ -355,6 +422,7 @@ pub async fn admin_disable_mfa(
 
     let txn = db::begin_tenant_txn(&state.db, tenant_id).await?;
     mfa_service::disable(&txn, tenant_id, user_id).await?;
+    mfa_service::delete_backup_codes(&txn, tenant_id, user_id).await?;
     txn.commit().await?;
 
     Ok(StatusCode::NO_CONTENT)

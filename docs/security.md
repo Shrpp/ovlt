@@ -84,6 +84,17 @@ The `TenantDb` Axum extractor (`src/extractors.rs`) adds a second layer of enfor
 - Container image scanned for CVEs (Grype) on every `main` push — critical CVEs fail the build
 - SARIF results uploaded to the GitHub Security tab
 
+## MFA backup codes
+
+When a user enables TOTP, they can generate a set of **10 single-use recovery codes** via `POST /auth/mfa/backup-codes` (requires a valid TOTP code to confirm identity before issuing codes).
+
+- Each code is 8 alphanumeric characters (`XXXX-XXXX` format, 40 bits of entropy)
+- Stored as SHA-256 hashes — plaintext is never persisted
+- Accepted at `POST /auth/mfa/challenge` via the `backup_code` field instead of `code`
+- Each code is permanently invalidated after a single use (`used_at` is set)
+- Generating a new set invalidates all previous codes atomically
+- Disabling TOTP (user or admin) purges all backup codes for that user
+
 ## Threat model
 
 | Threat | Mitigation |
@@ -91,6 +102,7 @@ The `TenantDb` Axum extractor (`src/extractors.rs`) adds a second layer of enfor
 | Brute-force passwords | Argon2id + per-tenant account lockout |
 | Token replay | JTI blocklist, short access token expiry |
 | Stolen refresh token | Rotation on use + revocation endpoint |
+| Lost authenticator app | MFA backup codes (single-use, hashed at rest) |
 | Cross-tenant data access | PostgreSQL RLS at DB layer |
 | Plaintext secrets at rest | AES-256-GCM double-envelope via hefesto |
 | Lost encryption keys | Auto-generated + printed on first run; must be saved |

@@ -9,7 +9,7 @@ use crate::{
         login::login,
         login_universal::login_universal,
         logout::logout,
-        mfa::{mfa_challenge, mfa_confirm, mfa_disable, mfa_setup},
+        mfa::{mfa_backup_codes_generate, mfa_challenge, mfa_confirm, mfa_disable, mfa_setup},
         oauth::{authorize, callback},
         refresh::refresh,
         register::register,
@@ -51,6 +51,7 @@ pub fn protected_router() -> Router<AppState> {
         .route("/auth/mfa/setup", post(mfa_setup))
         .route("/auth/mfa/confirm", post(mfa_confirm))
         .route("/auth/mfa/disable", post(mfa_disable))
+        .route("/auth/mfa/backup-codes", post(mfa_backup_codes_generate))
         .route("/auth/webauthn/register/start", post(register_start))
         .route("/auth/webauthn/register/finish", post(register_finish))
 }

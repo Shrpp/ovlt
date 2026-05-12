@@ -1,4 +1,5 @@
 pub mod audit_log;
+pub mod mfa_backup_codes;
 pub mod authorization_codes;
 pub mod client_roles;
 pub mod identity_providers;

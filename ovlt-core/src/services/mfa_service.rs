@@ -1,10 +1,100 @@
 use base32::Alphabet;
+use hex;
 use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
 use sha1::Sha1;
+use sha2::{Digest, Sha256};
 use totp_lite::{totp_custom, DEFAULT_STEP};
 use uuid::Uuid;
 
-use crate::{entity::totp_secrets, error::AppError};
+use crate::{
+    entity::{mfa_backup_codes, totp_secrets},
+    error::AppError,
+};
+
+pub const BACKUP_CODE_COUNT: usize = 10;
+
+fn backup_code_plaintext() -> String {
+    use rand::RngCore;
+    let mut bytes = [0u8; 5];
+    rand::thread_rng().fill_bytes(&mut bytes);
+    let encoded = base32::encode(Alphabet::RFC4648 { padding: false }, &bytes);
+    format!("{}-{}", &encoded[..4], &encoded[4..])
+}
+
+fn hash_backup_code(code: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(code.to_uppercase().replace('-', "").as_bytes());
+    hex::encode(hasher.finalize())
+}
+
+pub async fn generate_backup_codes<C: ConnectionTrait>(
+    db: &C,
+    tenant_id: Uuid,
+    user_id: Uuid,
+) -> Result<Vec<String>, AppError> {
+    mfa_backup_codes::Entity::delete_many()
+        .filter(mfa_backup_codes::Column::TenantId.eq(tenant_id))
+        .filter(mfa_backup_codes::Column::UserId.eq(user_id))
+        .exec(db)
+        .await?;
+
+    let mut codes = Vec::with_capacity(BACKUP_CODE_COUNT);
+    for _ in 0..BACKUP_CODE_COUNT {
+        let code = backup_code_plaintext();
+        let code_hash = hash_backup_code(&code);
+        mfa_backup_codes::ActiveModel {
+            tenant_id: Set(tenant_id),
+            user_id: Set(user_id),
+            code_hash: Set(code_hash),
+            ..Default::default()
+        }
+        .insert(db)
+        .await?;
+        codes.push(code);
+    }
+
+    Ok(codes)
+}
+
+pub async fn consume_backup_code<C: ConnectionTrait>(
+    db: &C,
+    tenant_id: Uuid,
+    user_id: Uuid,
+    code: &str,
+) -> Result<bool, AppError> {
+    let code_hash = hash_backup_code(code);
+
+    let record = mfa_backup_codes::Entity::find()
+        .filter(mfa_backup_codes::Column::TenantId.eq(tenant_id))
+        .filter(mfa_backup_codes::Column::UserId.eq(user_id))
+        .filter(mfa_backup_codes::Column::CodeHash.eq(&code_hash))
+        .filter(mfa_backup_codes::Column::UsedAt.is_null())
+        .one(db)
+        .await?;
+
+    let Some(record) = record else {
+        return Ok(false);
+    };
+
+    let mut active: mfa_backup_codes::ActiveModel = record.into();
+    active.used_at = Set(Some(chrono::Utc::now().fixed_offset()));
+    active.update(db).await?;
+
+    Ok(true)
+}
+
+pub async fn delete_backup_codes<C: ConnectionTrait>(
+    db: &C,
+    tenant_id: Uuid,
+    user_id: Uuid,
+) -> Result<(), AppError> {
+    mfa_backup_codes::Entity::delete_many()
+        .filter(mfa_backup_codes::Column::TenantId.eq(tenant_id))
+        .filter(mfa_backup_codes::Column::UserId.eq(user_id))
+        .exec(db)
+        .await?;
+    Ok(())
+}
 
 pub fn generate_secret() -> String {
     use rand::RngCore;
