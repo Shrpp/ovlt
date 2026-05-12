@@ -9,6 +9,7 @@ pub mod mfa_service;
 pub mod oauth_service;
 pub mod one_time_token_service;
 pub mod password_policy_service;
+pub mod rate_limit_service;
 pub mod permission_service;
 pub mod role_service;
 pub mod seed_service;

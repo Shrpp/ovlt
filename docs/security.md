@@ -49,8 +49,12 @@ Security headers set on **every response**:
 
 ## Rate limiting
 
-- Per-IP sliding-window rate limiting applied to public auth endpoints (`/auth/*`)
+- Per-IP fixed-window rate limiting applied to public auth endpoints (`/auth/*`)
+- **PostgreSQL-backed** — counters live in `rate_limit_buckets`; safe across multiple replicas sharing the same database instance
+- Limit: **20 requests per 60-second window** per IP address
+- Single atomic `INSERT ... ON CONFLICT DO UPDATE RETURNING count` — no race conditions, no double-counting across replicas
 - Limits apply **before** tenant resolution — an attacker cannot use tenant validity as an oracle to enumerate tenants without burning rate limit budget
+- Expired buckets are purged by the background cleanup task every 6 hours
 
 ## Admin API
 

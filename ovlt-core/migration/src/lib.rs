@@ -24,6 +24,7 @@ mod m20240101_000021_totp_secrets;
 mod m20240101_000022_rename_role;
 mod m20240101_000023_tenant_smtp_config;
 mod m20240101_000024_webauthn_credentials;
+mod m20240101_000025_rate_limit_buckets;
 
 pub struct Migrator;
 
@@ -55,6 +56,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20240101_000022_rename_role::Migration),
             Box::new(m20240101_000023_tenant_smtp_config::Migration),
             Box::new(m20240101_000024_webauthn_credentials::Migration),
+            Box::new(m20240101_000025_rate_limit_buckets::Migration),
         ]
     }
 }

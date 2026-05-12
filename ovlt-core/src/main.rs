@@ -12,7 +12,8 @@ use ovlt_core::{
     },
     openapi, routes,
     services::{
-        bootstrap_service, jwk_service::JwkService, lockout_service, session_service, token_service,
+        bootstrap_service, jwk_service::JwkService, lockout_service, rate_limit_service,
+        session_service, token_service,
     },
     state::AppState,
 };
@@ -118,6 +119,10 @@ async fn main() {
             match session_service::cleanup_expired(&db).await {
                 Ok(n) => tracing::info!("cleanup: removed {n} expired sessions"),
                 Err(e) => tracing::error!("session cleanup error: {e}"),
+            }
+            match rate_limit_service::cleanup_expired(&db).await {
+                Ok(n) => tracing::info!("cleanup: removed {n} expired rate limit buckets"),
+                Err(e) => tracing::error!("rate limit cleanup error: {e}"),
             }
         }
     });

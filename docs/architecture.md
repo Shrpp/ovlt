@@ -134,6 +134,7 @@ A Tokio task runs every 6 hours and purges expired rows:
 - Expired JTI replay-protection entries
 - Stale login attempt records (lockout cleanup)
 - Expired sessions
+- Expired rate limit buckets (`rate_limit_buckets.expires_at < NOW()`)
 
 ## Dependencies
 
