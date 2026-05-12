@@ -70,8 +70,7 @@ pub async fn list_users(
 ) -> Result<impl IntoResponse, AppError> {
     admin_auth::require_admin(
         &headers,
-        &state.config.admin_key,
-        &state.config.jwt_secret,
+        &state.config,
         state.master_tenant_id,
     )?;
     let tenant_id = extract_tenant_id(&headers)?;
@@ -132,8 +131,7 @@ pub async fn create_user(
 ) -> Result<impl IntoResponse, AppError> {
     admin_auth::require_admin(
         &headers,
-        &state.config.admin_key,
-        &state.config.jwt_secret,
+        &state.config,
         state.master_tenant_id,
     )?;
     let tenant_id = extract_tenant_id(&headers)?;
@@ -225,8 +223,7 @@ pub async fn update_user(
 ) -> Result<impl IntoResponse, AppError> {
     admin_auth::require_admin(
         &headers,
-        &state.config.admin_key,
-        &state.config.jwt_secret,
+        &state.config,
         state.master_tenant_id,
     )?;
     let tenant_id = extract_tenant_id(&headers)?;
@@ -288,8 +285,7 @@ pub async fn deactivate_user(
 ) -> Result<impl IntoResponse, AppError> {
     admin_auth::require_admin(
         &headers,
-        &state.config.admin_key,
-        &state.config.jwt_secret,
+        &state.config,
         state.master_tenant_id,
     )?;
     let tenant_id = extract_tenant_id(&headers)?;
@@ -324,8 +320,7 @@ pub async fn get_verification_code(
 ) -> Result<impl IntoResponse, AppError> {
     admin_auth::require_admin(
         &headers,
-        &state.config.admin_key,
-        &state.config.jwt_secret,
+        &state.config,
         state.master_tenant_id,
     )?;
     let tenant_id = extract_tenant_id(&headers)?;
@@ -368,8 +363,7 @@ pub async fn get_password_reset_token(
 ) -> Result<impl IntoResponse, AppError> {
     admin_auth::require_admin(
         &headers,
-        &state.config.admin_key,
-        &state.config.jwt_secret,
+        &state.config,
         state.master_tenant_id,
     )?;
     let tenant_id = extract_tenant_id(&headers)?;

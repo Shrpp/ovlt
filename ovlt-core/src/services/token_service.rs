@@ -105,14 +105,29 @@ pub fn generate_client_access_token(
     .map_err(|e| AppError::TokenError(e.to_string()))
 }
 
-pub fn validate_access_token(token: &str, secret: &str) -> Result<Claims, AppError> {
-    decode::<Claims>(
+pub fn validate_access_token(
+    token: &str,
+    secret: &str,
+    secret_previous: Option<&str>,
+) -> Result<Claims, AppError> {
+    let result = decode::<Claims>(
         token,
         &DecodingKey::from_secret(secret.as_bytes()),
         &Validation::default(),
-    )
-    .map(|d| d.claims)
-    .map_err(|e| AppError::TokenError(e.to_string()))
+    );
+    if let Ok(data) = result {
+        return Ok(data.claims);
+    }
+    if let Some(prev) = secret_previous {
+        return decode::<Claims>(
+            token,
+            &DecodingKey::from_secret(prev.as_bytes()),
+            &Validation::default(),
+        )
+        .map(|d| d.claims)
+        .map_err(|e| AppError::TokenError(e.to_string()));
+    }
+    Err(AppError::TokenError("invalid or expired token".into()))
 }
 
 pub fn generate_refresh_token() -> String {
@@ -256,14 +271,32 @@ pub fn generate_mfa_token(
     .map_err(|e| AppError::TokenError(e.to_string()))
 }
 
-pub fn verify_mfa_token(token: &str, secret: &str) -> Result<MfaClaims, AppError> {
-    let claims = decode::<MfaClaims>(
+pub fn verify_mfa_token(
+    token: &str,
+    secret: &str,
+    secret_previous: Option<&str>,
+) -> Result<MfaClaims, AppError> {
+    let result = decode::<MfaClaims>(
         token,
         &DecodingKey::from_secret(secret.as_bytes()),
         &Validation::default(),
-    )
-    .map(|d| d.claims)
-    .map_err(|e| AppError::TokenError(e.to_string()))?;
+    );
+    let claims = match result {
+        Ok(data) => data.claims,
+        Err(_) => {
+            if let Some(prev) = secret_previous {
+                decode::<MfaClaims>(
+                    token,
+                    &DecodingKey::from_secret(prev.as_bytes()),
+                    &Validation::default(),
+                )
+                .map(|d| d.claims)
+                .map_err(|e| AppError::TokenError(e.to_string()))?
+            } else {
+                return Err(AppError::Unauthorized);
+            }
+        }
+    };
 
     if claims.purpose != "mfa_challenge" {
         return Err(AppError::Unauthorized);

@@ -27,9 +27,8 @@ fn extract_tenant_id(headers: &HeaderMap) -> Result<Uuid, AppError> {
 fn require_admin(state: &AppState, headers: &HeaderMap) -> Result<(), AppError> {
     admin_auth::require_admin(
         headers,
-        &state.config.admin_key,
-        &state.config.jwt_secret,
-        state.master_tenant_id,
+        &state.config,
+state.master_tenant_id,
     )
     .map(|_| ())
 }

@@ -1,7 +1,7 @@
 use axum::http::HeaderMap;
 use uuid::Uuid;
 
-use crate::{error::AppError, services::token_service};
+use crate::{config::Config, error::AppError, services::token_service};
 
 /// Accept any of:
 /// 1. X-OVLT-Admin-Key header matching the configured key.
@@ -13,12 +13,11 @@ use crate::{error::AppError, services::token_service};
 /// for tenant-scoped access (path 3), enabling callers to filter results.
 pub fn require_admin(
     headers: &HeaderMap,
-    admin_key: &Option<String>,
-    jwt_secret: &str,
+    config: &Config,
     master_tenant_id: Option<Uuid>,
 ) -> Result<Option<Uuid>, AppError> {
     // 1. Static admin key — full access.
-    if let Some(key) = admin_key {
+    if let Some(key) = &config.admin_key {
         let provided = headers
             .get("x-ovlt-admin-key")
             .and_then(|v| v.to_str().ok())
@@ -36,8 +35,12 @@ pub fn require_admin(
         return Err(AppError::Unauthorized);
     };
 
-    let claims = token_service::validate_access_token(bearer, jwt_secret)
-        .map_err(|_| AppError::Unauthorized)?;
+    let claims = token_service::validate_access_token(
+        bearer,
+        &config.jwt_secret,
+        config.jwt_secret_previous.as_deref(),
+    )
+    .map_err(|_| AppError::Unauthorized)?;
 
     let token_tid = Uuid::parse_str(&claims.tid).map_err(|_| AppError::Unauthorized)?;
 

@@ -86,6 +86,35 @@ The `TenantDb` Axum extractor (`src/extractors.rs`) adds a second layer of enfor
 - Container image scanned for CVEs (Grype) on every `main` push — critical CVEs fail the build
 - SARIF results uploaded to the GitHub Security tab
 
+## Key rotation
+
+OVLT supports zero-downtime key rotation via grace-period env vars. Set the old secret as the `_PREVIOUS` variant before restarting, then remove it once all in-flight tokens have expired.
+
+### HS256 access tokens
+
+| Env var | Role |
+|---------|------|
+| `JWT_SECRET` | Active signing key — all new tokens use this |
+| `JWT_SECRET_PREVIOUS` | Optional; accepted during validation if current key fails |
+
+Rotation procedure:
+1. Set `JWT_SECRET_PREVIOUS=<old value>`, update `JWT_SECRET=<new value>`, restart.
+2. Wait for the maximum access token TTL (default 15 min) to elapse.
+3. Remove `JWT_SECRET_PREVIOUS` and restart.
+
+### RS256 id_tokens (OIDC)
+
+| Env var | Role |
+|---------|------|
+| `RSA_PRIVATE_KEY` | Active signing key — new id_tokens use this |
+| `RSA_PRIVATE_KEY_PREVIOUS` | Optional; both public keys appear in `/.well-known/jwks.json` |
+
+Rotation procedure:
+1. Generate a new RSA-2048 keypair, base64-encode the PKCS8 PEM.
+2. Set `RSA_PRIVATE_KEY_PREVIOUS=<old value>`, update `RSA_PRIVATE_KEY=<new value>`, restart.
+3. OIDC clients will see both keys in JWKS and validate tokens by `kid` — no client-side change needed.
+4. After old id_tokens expire (same TTL as access tokens), remove `RSA_PRIVATE_KEY_PREVIOUS` and restart.
+
 ## MFA backup codes
 
 When a user enables TOTP, they can generate a set of **10 single-use recovery codes** via `POST /auth/mfa/backup-codes` (requires a valid TOTP code to confirm identity before issuing codes).

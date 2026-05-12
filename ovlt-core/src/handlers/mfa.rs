@@ -263,7 +263,11 @@ pub async fn mfa_challenge(
     Extension(ctx): Extension<TenantContext>,
     Json(payload): Json<ChallengeRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let claims = token_service::verify_mfa_token(&payload.mfa_token, &state.config.jwt_secret)?;
+    let claims = token_service::verify_mfa_token(
+        &payload.mfa_token,
+        &state.config.jwt_secret,
+        state.config.jwt_secret_previous.as_deref(),
+    )?;
 
     let user_id = Uuid::parse_str(&claims.sub).map_err(|_| AppError::Unauthorized)?;
     let token_tenant_id = Uuid::parse_str(&claims.tid).map_err(|_| AppError::Unauthorized)?;
@@ -414,8 +418,7 @@ pub async fn admin_disable_mfa(
 ) -> Result<impl IntoResponse, AppError> {
     admin_auth::require_admin(
         &headers,
-        &state.config.admin_key,
-        &state.config.jwt_secret,
+        &state.config,
         state.master_tenant_id,
     )?;
     let tenant_id = extract_tenant_id(&headers)?;

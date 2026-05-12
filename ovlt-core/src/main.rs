@@ -62,12 +62,18 @@ async fn main() {
             std::process::exit(1);
         });
 
-    let jwk = match &config.rsa_private_key {
-        Some(b64) => JwkService::from_pem_b64(b64).unwrap_or_else(|e| {
+    let jwk = match (&config.rsa_private_key, &config.rsa_private_key_previous) {
+        (Some(cur), Some(prev)) => {
+            JwkService::from_pem_b64_with_previous(cur, prev).unwrap_or_else(|e| {
+                eprintln!("RSA key error: {e}");
+                std::process::exit(1);
+            })
+        }
+        (Some(cur), None) => JwkService::from_pem_b64(cur).unwrap_or_else(|e| {
             eprintln!("RSA key error: {e}");
             std::process::exit(1);
         }),
-        None => JwkService::generate(),
+        (None, _) => JwkService::generate(),
     };
 
     let master_slug = config.bootstrap_tenant_slug.as_deref().unwrap_or("master");

@@ -59,7 +59,11 @@ pub async fn authorize(
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.strip_prefix("Bearer "))
     {
-        let claims = token_service::validate_access_token(bearer, &state.config.jwt_secret)?;
+        let claims = token_service::validate_access_token(
+            bearer,
+            &state.config.jwt_secret,
+            state.config.jwt_secret_previous.as_deref(),
+        )?;
         if token_service::is_jti_revoked(&state.db, &claims.jti).await? {
             return Err(AppError::Unauthorized);
         }
@@ -483,7 +487,11 @@ pub async fn introspect(
         return Err(AppError::Unauthorized);
     }
 
-    match token_service::validate_access_token(&req.token, &state.config.jwt_secret) {
+    match token_service::validate_access_token(
+        &req.token,
+        &state.config.jwt_secret,
+        state.config.jwt_secret_previous.as_deref(),
+    ) {
         Ok(claims) => Ok((
             StatusCode::OK,
             Json(serde_json::json!({

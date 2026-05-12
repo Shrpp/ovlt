@@ -69,8 +69,7 @@ pub async fn create_tenant(
 ) -> Result<impl IntoResponse, AppError> {
     admin_auth::require_admin(
         &headers,
-        &state.config.admin_key,
-        &state.config.jwt_secret,
+        &state.config,
         state.master_tenant_id,
     )?;
 
@@ -168,8 +167,7 @@ pub async fn list_tenants(
 ) -> Result<impl IntoResponse, AppError> {
     let scope = admin_auth::require_admin(
         &headers,
-        &state.config.admin_key,
-        &state.config.jwt_secret,
+        &state.config,
         state.master_tenant_id,
     )?;
 

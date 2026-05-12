@@ -56,8 +56,7 @@ pub async fn list_passkeys(
 ) -> Result<impl IntoResponse, AppError> {
     admin_auth::require_admin(
         &headers,
-        &state.config.admin_key,
-        &state.config.jwt_secret,
+        &state.config,
         state.master_tenant_id,
     )?;
     let tenant_id = extract_tenant_id(&headers)?;
@@ -106,8 +105,7 @@ pub async fn delete_passkey(
 ) -> Result<impl IntoResponse, AppError> {
     admin_auth::require_admin(
         &headers,
-        &state.config.admin_key,
-        &state.config.jwt_secret,
+        &state.config,
         state.master_tenant_id,
     )?;
     let tenant_id = extract_tenant_id(&headers)?;
