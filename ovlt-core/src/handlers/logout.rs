@@ -7,9 +7,9 @@ use axum::{
 use serde::Deserialize;
 
 use crate::{
-    db,
     error::AppError,
-    middleware::{auth::AuthUser, tenant::TenantContext},
+    extractors::TenantDb,
+    middleware::auth::AuthUser,
     services::{session_service, token_service},
     state::AppState,
 };
@@ -39,10 +39,12 @@ pub async fn logout(
     State(state): State<AppState>,
     headers: HeaderMap,
     Extension(auth): Extension<AuthUser>,
-    Extension(ctx): Extension<TenantContext>,
+    db: TenantDb,
     Json(payload): Json<LogoutRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    // Revoke the access token JTI.
+    let TenantDb { txn, .. } = db;
+
+    // Revoke the access token JTI (cross-tenant table, uses raw connection intentionally).
     let exp = chrono::DateTime::from_timestamp(
         jsonwebtoken::decode::<token_service::Claims>(
             headers
@@ -62,9 +64,8 @@ pub async fn logout(
 
     token_service::revoke_jti(&state.db, &auth.jti, exp).await?;
 
-    // Revoke the refresh token.
+    // Revoke the refresh token through the RLS-scoped transaction.
     let token_hash = token_service::hash_refresh_token(&payload.refresh_token);
-    let txn = db::begin_tenant_txn(&state.db, ctx.tenant_id).await?;
     if let Some(r) = token_service::find_valid_refresh_token(&txn, &token_hash).await? {
         if r.user_id == auth.user_id {
             token_service::revoke_token(&txn, r).await?;

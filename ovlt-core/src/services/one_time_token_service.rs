@@ -1,6 +1,9 @@
 use chrono::Utc;
 use rand::{rngs::OsRng, RngCore};
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter,
+    Set,
+};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
@@ -30,8 +33,8 @@ pub fn hash_otp(user_id: Uuid, otp: &str) -> String {
     hex::encode(Sha256::digest(format!("{user_id}:{otp}").as_bytes()))
 }
 
-pub async fn store_otp(
-    db: &DatabaseConnection,
+pub async fn store_otp<C: ConnectionTrait>(
+    db: &C,
     tenant_id: Uuid,
     user_id: Uuid,
     otp: &str,
@@ -49,8 +52,8 @@ pub async fn store_otp(
     .await
 }
 
-pub async fn consume_otp(
-    db: &DatabaseConnection,
+pub async fn consume_otp<C: ConnectionTrait>(
+    db: &C,
     user_id: Uuid,
     otp: &str,
 ) -> Result<one_time_tokens::Model, AppError> {
@@ -75,8 +78,8 @@ pub async fn consume_otp(
     Ok(record)
 }
 
-pub async fn store(
-    db: &DatabaseConnection,
+pub async fn store<C: ConnectionTrait>(
+    db: &C,
     tenant_id: Uuid,
     user_id: Uuid,
     token_hash: String,
@@ -98,8 +101,8 @@ pub async fn store(
     Ok(())
 }
 
-pub async fn consume(
-    db: &DatabaseConnection,
+pub async fn consume<C: ConnectionTrait>(
+    db: &C,
     token: &str,
     expected_type: &str,
 ) -> Result<one_time_tokens::Model, AppError> {

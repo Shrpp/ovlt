@@ -66,6 +66,8 @@ AES-256-GCM double-envelope encryption for all sensitive fields (TOTP secrets, t
 
 PostgreSQL Row-Level Security enforces tenant boundaries at the DB layer. A query executing in the wrong tenant context returns zero rows — not a `403`. Application-level bugs cannot leak cross-tenant data because the database enforces it independently.
 
+The `TenantDb` Axum extractor (`src/extractors.rs`) adds a second layer of enforcement at compile time. User-facing handlers that declare `TenantDb` in their signature are guaranteed to receive a `DatabaseTransaction` with `SET LOCAL ROLE ovlt_rls` and `app.tenant_id` already set — it is structurally impossible to skip this step and still reach the handler body.
+
 ## CORS
 
 - Wildcard `*` is allowed only in development

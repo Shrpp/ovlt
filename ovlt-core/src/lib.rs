@@ -2,6 +2,7 @@ pub mod config;
 pub mod db;
 pub mod entity;
 pub mod error;
+pub mod extractors;
 pub mod handlers;
 pub mod middleware;
 pub mod openapi;

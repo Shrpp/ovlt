@@ -2,16 +2,15 @@ use axum::{
     extract::{ConnectInfo, State},
     http::StatusCode,
     response::IntoResponse,
-    Extension, Json,
+    Json,
 };
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use validator::Validate;
 
 use crate::{
-    db,
     error::{validation_to_app_error, AppError},
-    middleware::tenant::TenantContext,
+    extractors::TenantDb,
     services::{
         audit_service, email_service, one_time_token_service, password_policy_service,
         tenant_settings_service, user_service,
@@ -51,30 +50,31 @@ pub struct RegisterResponse {
 pub async fn register(
     State(state): State<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
-    Extension(ctx): Extension<TenantContext>,
+    db: TenantDb,
     Json(payload): Json<RegisterRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     payload.validate().map_err(validation_to_app_error)?;
 
-    let settings = tenant_settings_service::get(&state.db, ctx.tenant_id).await?;
+    let TenantDb { txn, tenant_id, tenant_key } = db;
+
+    // Settings and policy reads go through the RLS-scoped transaction.
+    let settings = tenant_settings_service::get(&txn, tenant_id).await?;
     if !settings.allow_public_registration {
         return Err(AppError::Forbidden);
     }
 
-    let policy = password_policy_service::get(&state.db, ctx.tenant_id).await?;
+    let policy = password_policy_service::get(&txn, tenant_id).await?;
     password_policy_service::validate(&payload.password, &policy)?;
 
     let email_normalized = payload.email.trim().to_lowercase();
 
-    let email_lookup = hefesto::hash_for_lookup(&email_normalized, &ctx.tenant_key)?;
+    let email_lookup = hefesto::hash_for_lookup(&email_normalized, &tenant_key)?;
     let email_encrypted = hefesto::encrypt(
         &email_normalized,
-        &ctx.tenant_key,
+        &tenant_key,
         &state.config.master_encryption_key,
     )?;
     let password_hash = hefesto::hash_password(&payload.password)?;
-
-    let txn = db::begin_tenant_txn(&state.db, ctx.tenant_id).await?;
 
     if user_service::email_lookup_exists(&txn, &email_lookup).await? {
         return Err(AppError::Conflict);
@@ -83,7 +83,7 @@ pub async fn register(
     let user = user_service::create(
         &txn,
         user_service::CreateUserInput {
-            tenant_id: ctx.tenant_id,
+            tenant_id,
             email_encrypted,
             email_lookup,
             password_hash,
@@ -95,7 +95,7 @@ pub async fn register(
 
     audit_service::record(
         state.db.clone(),
-        ctx.tenant_id,
+        tenant_id,
         Some(user.id),
         "user.registered",
         Some(addr.ip().to_string()),
@@ -104,7 +104,7 @@ pub async fn register(
 
     if settings.require_email_verified {
         let otp = one_time_token_service::generate_otp();
-        one_time_token_service::store_otp(&state.db, ctx.tenant_id, user.id, &otp, 24).await?;
+        one_time_token_service::store_otp(&state.db, tenant_id, user.id, &otp, 24).await?;
 
         let html = format!(
             "<p>Welcome! Your email verification code is:</p>\
@@ -115,8 +115,8 @@ pub async fn register(
 
         email_service::try_send(
             &state.db,
-            ctx.tenant_id,
-            &ctx.tenant_key,
+            tenant_id,
+            &tenant_key,
             &state.config.master_encryption_key,
             &email_normalized,
             "Verify your email",

@@ -1,5 +1,5 @@
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, Set};
+use sea_orm::{ActiveModelTrait, ConnectionTrait, DatabaseConnection, EntityTrait, Set};
 use uuid::Uuid;
 
 use crate::{entity::tenant_settings, error::AppError};
@@ -29,7 +29,7 @@ impl Default for TenantSettings {
     }
 }
 
-pub async fn get(db: &DatabaseConnection, tenant_id: Uuid) -> Result<TenantSettings, AppError> {
+pub async fn get<C: ConnectionTrait>(db: &C, tenant_id: Uuid) -> Result<TenantSettings, AppError> {
     match tenant_settings::Entity::find_by_id(tenant_id)
         .one(db)
         .await?

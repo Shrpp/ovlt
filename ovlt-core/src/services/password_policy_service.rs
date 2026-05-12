@@ -1,5 +1,5 @@
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, Set};
+use sea_orm::{ActiveModelTrait, ConnectionTrait, DatabaseConnection, EntityTrait, Set};
 use uuid::Uuid;
 
 use crate::{entity::password_policies, error::AppError};
@@ -22,7 +22,7 @@ impl Default for Policy {
     }
 }
 
-pub async fn get(db: &DatabaseConnection, tenant_id: Uuid) -> Result<Policy, AppError> {
+pub async fn get<C: ConnectionTrait>(db: &C, tenant_id: Uuid) -> Result<Policy, AppError> {
     match password_policies::Entity::find_by_id(tenant_id)
         .one(db)
         .await?
