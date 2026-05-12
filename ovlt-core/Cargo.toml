@@ -38,7 +38,8 @@ uuid         = { version = "1", features = ["v4"] }
 chrono       = { version = "0.4", features = ["serde"] }
 
 # Crypto
-hefesto = "1.1.0"
+hefesto  = "1.1.0"
+zeroize  = { version = "1", features = ["derive"] }
 
 # Hashing de refresh tokens
 sha2 = "0.10"

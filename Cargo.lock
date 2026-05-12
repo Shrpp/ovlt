@@ -2567,6 +2567,7 @@ dependencies = [
  "uuid",
  "validator",
  "webauthn-rs",
+ "zeroize",
 ]
 
 [[package]]

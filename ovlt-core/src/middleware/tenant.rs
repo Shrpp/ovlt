@@ -5,12 +5,12 @@ use axum::{
 };
 use uuid::Uuid;
 
-use crate::{error::AppError, services::tenant_service, state::AppState};
+use crate::{error::AppError, services::tenant_service, state::{AppState, CachedTenantKey}};
 
 #[derive(Clone, Debug)]
 pub struct TenantContext {
     pub tenant_id: Uuid,
-    /// Decrypted per-tenant encryption key (lives only in memory).
+    /// Decrypted per-tenant encryption key (lives only in memory for the duration of the request).
     pub tenant_key: String,
 }
 
@@ -36,11 +36,25 @@ pub async fn tenant_middleware(
         return Err(AppError::Unauthorized);
     };
 
-    let tenant_key = hefesto::decrypt(
-        &record.encryption_key_encrypted,
-        &state.config.tenant_wrap_key,
-        &state.config.master_encryption_key,
-    )?;
+    let tenant_key = {
+        let cached = state.tenant_key_cache.get(&record.id);
+        match cached {
+            Some(entry) if entry.is_valid() => entry.get().to_string(),
+            _ => {
+                drop(cached);
+                state.tenant_key_cache.remove(&record.id);
+                let key = hefesto::decrypt(
+                    &record.encryption_key_encrypted,
+                    &state.config.tenant_wrap_key,
+                    &state.config.master_encryption_key,
+                )?;
+                state
+                    .tenant_key_cache
+                    .insert(record.id, CachedTenantKey::new(key.clone()));
+                key
+            }
+        }
+    };
 
     req.extensions_mut().insert(TenantContext {
         tenant_id: record.id,

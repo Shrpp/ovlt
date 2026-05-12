@@ -66,6 +66,8 @@ Security headers set on **every response**:
 
 AES-256-GCM double-envelope encryption for all sensitive fields (TOTP secrets, token seeds). Each tenant has a unique data key derived from env vars that are never stored in the database. See [Architecture](/docs/architecture) for the full key hierarchy.
 
+Decrypted tenant data keys are cached in memory for up to **5 minutes** (`TENANT_KEY_TTL`) to avoid re-decrypting on every request. Cached values are wrapped in `Zeroizing<String>` (via the `zeroize` crate) so the key bytes are overwritten with zeros when the cache entry expires or is evicted — they do not linger in heap memory.
+
 ## Multi-tenant isolation
 
 PostgreSQL Row-Level Security enforces tenant boundaries at the DB layer. A query executing in the wrong tenant context returns zero rows — not a `403`. Application-level bugs cannot leak cross-tenant data because the database enforces it independently.

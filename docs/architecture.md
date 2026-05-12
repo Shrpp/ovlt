@@ -48,7 +48,7 @@ sequenceDiagram
 ```
 
 1. The application connects as role `ovlt_rls` (not a superuser).
-2. The `tenant_middleware` resolves the tenant from `x-ovlt-tenant-id` or `x-ovlt-tenant-slug`, decrypts the per-tenant data key, and stores both in request `Extensions` as `TenantContext`.
+2. The `tenant_middleware` resolves the tenant from `x-ovlt-tenant-id` or `x-ovlt-tenant-slug`, decrypts the per-tenant data key (or returns it from a 5-minute in-memory cache), and stores both in request `Extensions` as `TenantContext`. Cached keys are wrapped in `Zeroizing<String>` — memory is zeroed when the entry expires or is evicted.
 3. Handlers that touch tenant data declare `TenantDb` as an Axum extractor. The extractor reads `TenantContext` from extensions and opens a transaction via `db::begin_tenant_txn(tenant_id)`, which executes `SELECT set_config('app.tenant_id', $1, true)` — parameterized, transaction-scoped. If `TenantContext` is absent (tenant middleware did not run), the extractor rejects the request with `401` before the handler body executes.
 4. All tables carry an RLS policy: `USING (tenant_id = current_setting('app.tenant_id')::uuid)`.
 5. `FORCE ROW LEVEL SECURITY` prevents the table owner from bypassing it.
