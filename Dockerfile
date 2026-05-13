@@ -2,7 +2,7 @@
 FROM rust:1.88-slim AS builder
 
 RUN apt-get update \
- && apt-get install -y pkg-config libssl-dev \
+ && apt-get install -y pkg-config libssl-dev curl \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -41,7 +41,7 @@ RUN touch ovlt-core/src/main.rs ovlt-core/src/lib.rs \
 # same Dockerfile works for multi-arch builds without hardcoded paths.
 FROM debian:bookworm-slim AS openssl-libs
 RUN apt-get update \
- && apt-get install -y --no-install-recommends libssl3 \
+ && apt-get install -y --no-install-recommends libssl3 dpkg-dev \
  && rm -rf /var/lib/apt/lists/* \
  && TRIPLET=$(dpkg-architecture -q DEB_HOST_MULTIARCH) \
  && cp /usr/lib/$TRIPLET/libssl.so.3    /libssl.so.3 \

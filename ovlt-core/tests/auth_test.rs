@@ -628,12 +628,13 @@ async fn test_rbac_roles_appear_in_token_claims() {
     let user = create_test_user(&db, &cfg, tenant_id, &tenant_key, "rbac@test.dev", "Pass1234!").await;
 
     // Create role and assign to user
+    let role_name = format!("editor-{}", uuid::Uuid::new_v4());
     let txn = db::begin_tenant_txn(&db, tenant_id).await.unwrap();
     let role = role_service::create(
         &txn,
         role_service::CreateRoleInput {
             tenant_id,
-            name: "editor".into(),
+            name: role_name.clone(),
             description: "Can edit content".into(),
         },
     )
@@ -651,7 +652,7 @@ async fn test_rbac_roles_appear_in_token_claims() {
         .expect("list role names");
     txn.commit().await.unwrap();
 
-    assert!(role_names.contains(&"editor".to_string()), "role must be returned by list_names_for_user");
+    assert!(role_names.contains(&role_name), "role must be returned by list_names_for_user");
 
     // Generate token with those roles
     let token = token_service::generate_access_token(
@@ -670,7 +671,7 @@ async fn test_rbac_roles_appear_in_token_claims() {
         .expect("validate");
 
     assert!(
-        claims.realm_access.roles.contains(&"editor".to_string()),
+        claims.realm_access.roles.contains(&role_name),
         "role must appear in realm_access.roles claim"
     );
 }
@@ -680,12 +681,13 @@ async fn test_rbac_revoked_role_absent_from_new_token() {
     let (db, cfg, tenant_id, tenant_key) = setup().await;
     let user = create_test_user(&db, &cfg, tenant_id, &tenant_key, "rbac2@test.dev", "Pass1234!").await;
 
+    let role_name = format!("moderator-{}", uuid::Uuid::new_v4());
     let txn = db::begin_tenant_txn(&db, tenant_id).await.unwrap();
     let role = role_service::create(
         &txn,
         role_service::CreateRoleInput {
             tenant_id,
-            name: "moderator".into(),
+            name: role_name.clone(),
             description: "".into(),
         },
     )
@@ -707,7 +709,7 @@ async fn test_rbac_revoked_role_absent_from_new_token() {
     txn.commit().await.unwrap();
 
     assert!(
-        !role_names.contains(&"moderator".to_string()),
+        !role_names.contains(&role_name),
         "revoked role must not appear in list_names_for_user"
     );
 
@@ -725,7 +727,7 @@ async fn test_rbac_revoked_role_absent_from_new_token() {
 
     let claims = token_service::validate_access_token(&token, &cfg.jwt_secret, None).unwrap();
     assert!(
-        !claims.realm_access.roles.contains(&"moderator".to_string()),
+        !claims.realm_access.roles.contains(&role_name),
         "revoked role must not appear in token claims"
     );
 }

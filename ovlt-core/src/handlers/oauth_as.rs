@@ -1,7 +1,7 @@
 use axum::{
     extract::{Form, Query, State},
-    http::{HeaderMap, StatusCode},
-    response::{IntoResponse, Redirect, Response},
+    http::{header, HeaderMap, StatusCode},
+    response::{IntoResponse, Response},
     Json,
 };
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
@@ -145,7 +145,7 @@ pub async fn authorize(
         redirect_url.push_str(&format!("&state={s}"));
     }
 
-    Ok(Redirect::to(&redirect_url))
+    Ok((StatusCode::FOUND, [(header::LOCATION, redirect_url)]).into_response())
 }
 
 // ── /oauth/token ─────────────────────────────────────────────────────────────

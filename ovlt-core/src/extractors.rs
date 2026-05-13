@@ -12,7 +12,7 @@ use crate::{db, error::AppError, middleware::tenant::TenantContext, state::AppSt
 /// the tenant from the `X-Tenant-ID` / `X-Tenant-Slug` header.
 ///
 /// Usage:
-/// ```rust
+/// ```text
 /// pub async fn handler(db: TenantDb) -> Result<impl IntoResponse, AppError> {
 ///     let TenantDb { txn, tenant_id, tenant_key } = db;
 ///     // ... use &txn for SeaORM queries ...
