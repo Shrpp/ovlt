@@ -2118,11 +2118,9 @@ async fn handle_content_key(app: &mut App, code: KeyCode) {
                 }
             }
         },
-        KeyCode::Char('x') => {
-            if app.tab == Tab::AuditLog {
-                if let Some(tid) = app.active_tenant_id.clone() {
-                    export_audit_log_csv(app, tid).await;
-                }
+        KeyCode::Char('x') if app.tab == Tab::AuditLog => {
+            if let Some(tid) = app.active_tenant_id.clone() {
+                export_audit_log_csv(app, tid).await;
             }
         }
         _ => {}

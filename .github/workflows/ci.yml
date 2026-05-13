@@ -30,10 +30,10 @@ jobs:
 
     env:
       DATABASE_URL: postgres://ovlt:ovlt@localhost:5432/ovlt_test
-      JWT_SECRET: test-jwt-secret-that-is-at-least-32-chars
-      MASTER_ENCRYPTION_KEY: test-master-key-that-is-32-chars!!
-      TENANT_WRAP_KEY: test-wrap-key-different-32-chars!!
-      OVLT_ADMIN_KEY: test-admin-key
+      JWT_SECRET: ${{ secrets.CI_JWT_SECRET }}
+      MASTER_ENCRYPTION_KEY: ${{ secrets.CI_MASTER_ENCRYPTION_KEY }}
+      TENANT_WRAP_KEY: ${{ secrets.CI_TENANT_WRAP_KEY }}
+      OVLT_ADMIN_KEY: ${{ secrets.CI_OVLT_ADMIN_KEY }}
       OVLT_ISSUER: http://localhost:3000
       ENVIRONMENT: development
 
