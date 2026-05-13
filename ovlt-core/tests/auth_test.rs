@@ -122,7 +122,7 @@ async fn test_register_and_login() {
     .expect("generate token");
 
     let claims =
-        token_service::validate_access_token(&token, &cfg.jwt_secret).expect("validate token");
+        token_service::validate_access_token(&token, &cfg.jwt_secret, None).expect("validate token");
 
     assert_eq!(claims.sub, user.id.to_string());
     assert_eq!(claims.tid, tenant_id.to_string());
@@ -151,7 +151,7 @@ async fn test_me_endpoint_logic() {
     )
     .unwrap();
 
-    let claims = token_service::validate_access_token(&token, &cfg.jwt_secret).unwrap();
+    let claims = token_service::validate_access_token(&token, &cfg.jwt_secret, None).unwrap();
     assert_eq!(claims.sub, user.id.to_string());
 
     let txn = db::begin_tenant_txn(&db, tenant_id).await.unwrap();
@@ -417,14 +417,14 @@ async fn test_mfa_token_roundtrip() {
         .expect("generate mfa token");
 
     let claims =
-        token_service::verify_mfa_token(&token, &cfg.jwt_secret).expect("verify mfa token");
+        token_service::verify_mfa_token(&token, &cfg.jwt_secret, None).expect("verify mfa token");
 
     assert_eq!(claims.sub, user_id.to_string());
     assert_eq!(claims.tid, tenant_id.to_string());
     assert_eq!(claims.purpose, "mfa_challenge");
 
     // Wrong secret must fail
-    let bad = token_service::verify_mfa_token(&token, "wrong_secret_that_is_long_enough_32c");
+    let bad = token_service::verify_mfa_token(&token, "wrong_secret_that_is_long_enough_32c", None);
     assert!(bad.is_err());
 }
 
