@@ -13,7 +13,10 @@ use crate::{
     entity::one_time_tokens,
     error::{validation_to_app_error, AppError},
     handlers::admin_auth,
-    services::{mfa_service, one_time_token_service, tenant_service, user_service},
+    services::{
+        mfa_service, one_time_token_service, password_history_service, password_policy_service,
+        tenant_service, user_service,
+    },
     state::AppState,
 };
 
@@ -251,7 +254,10 @@ pub async fn update_user(
     }
 
     if let Some(password) = payload.password {
+        let policy = password_policy_service::get(&txn, tenant_id).await?;
+        password_history_service::check(&txn, id, &password, policy.history_size).await?;
         let password_hash = hefesto::hash_password(&password)?;
+        password_history_service::record(&txn, tenant_id, id, &password_hash).await?;
         user_service::update_password(&txn, id, password_hash).await?;
     }
 

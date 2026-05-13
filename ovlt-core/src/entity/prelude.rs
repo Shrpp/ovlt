@@ -4,6 +4,7 @@ pub use super::client_roles::Entity as ClientRoles;
 pub use super::identity_providers::Entity as IdentityProviders;
 pub use super::login_attempts::Entity as LoginAttempts;
 pub use super::oauth_accounts::Entity as OauthAccounts;
+pub use super::password_history::Entity as PasswordHistory;
 pub use super::oauth_clients::Entity as OauthClients;
 pub use super::refresh_tokens::Entity as RefreshTokens;
 pub use super::sessions::Entity as Sessions;

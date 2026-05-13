@@ -9,6 +9,7 @@ pub struct Policy {
     pub require_uppercase: bool,
     pub require_digit: bool,
     pub require_special: bool,
+    pub history_size: i32,
 }
 
 impl Default for Policy {
@@ -18,6 +19,7 @@ impl Default for Policy {
             require_uppercase: false,
             require_digit: false,
             require_special: false,
+            history_size: 0,
         }
     }
 }
@@ -32,6 +34,7 @@ pub async fn get<C: ConnectionTrait>(db: &C, tenant_id: Uuid) -> Result<Policy, 
             require_uppercase: p.require_uppercase,
             require_digit: p.require_digit,
             require_special: p.require_special,
+            history_size: p.history_size,
         }),
         None => Ok(Policy::default()),
     }

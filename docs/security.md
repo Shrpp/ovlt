@@ -11,6 +11,8 @@ All passwords are hashed with **Argon2id** before storage:
 - Plaintext is never stored, logged, or returned in any response
 - Resistant to GPU and ASIC brute-force attacks
 
+**Password history** — when `history_size > 0` in a tenant's password policy, the last N hashes are checked on every password change (reset flow and admin-forced change). Reusing a recent password returns a 400 error. Each accepted hash is recorded in `password_history` (RLS-isolated per tenant). Setting `history_size = 0` disables the check.
+
 ## Account lockout
 
 After **5 consecutive failed login attempts**, the account is locked for **15 minutes**.
@@ -132,6 +134,7 @@ When a user enables TOTP, they can generate a set of **10 single-use recovery co
 | Threat | Mitigation |
 |--------|-----------|
 | Brute-force passwords | Argon2id + per-tenant account lockout |
+| Password reuse | History check against last N Argon2id hashes (configurable per tenant) |
 | Token replay | JTI blocklist, short access token expiry |
 | Stolen refresh token | Rotation on use + revocation endpoint |
 | Lost authenticator app | MFA backup codes (single-use, hashed at rest) |

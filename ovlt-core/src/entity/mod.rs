@@ -7,6 +7,7 @@ pub mod login_attempts;
 pub mod oauth_accounts;
 pub mod oauth_clients;
 pub mod one_time_tokens;
+pub mod password_history;
 pub mod password_policies;
 pub mod permissions;
 pub mod prelude;

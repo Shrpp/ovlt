@@ -8,6 +8,7 @@ pub mod lockout_service;
 pub mod mfa_service;
 pub mod oauth_service;
 pub mod one_time_token_service;
+pub mod password_history_service;
 pub mod password_policy_service;
 pub mod rate_limit_service;
 pub mod permission_service;

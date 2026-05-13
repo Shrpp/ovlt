@@ -3,7 +3,8 @@ use ovlt_core::{
     db,
     entity::tenants,
     services::{
-        lockout_service, mfa_service, oauth_service, one_time_token_service, token_service,
+        lockout_service, mfa_service, oauth_service, one_time_token_service,
+        password_history_service, password_policy_service, role_service, token_service,
         user_service,
     },
 };
@@ -437,4 +438,400 @@ async fn test_mfa_totp_uri_format() {
     assert!(uri.contains(&secret));
     assert!(uri.contains("digits=6"));
     assert!(uri.contains("period=30"));
+}
+
+// ── Key rotation grace period ─────────────────────────────────────────────────
+
+#[tokio::test]
+async fn test_key_rotation_previous_secret_accepted() {
+    dotenvy::dotenv().ok();
+    let cfg = Config::from_env().expect("config");
+
+    let old_secret = "old-jwt-secret-at-least-32-characters-long";
+    let new_secret = &cfg.jwt_secret;
+
+    let user_id = Uuid::new_v4();
+    let tenant_id = Uuid::new_v4();
+
+    // Token signed with old secret
+    let token = token_service::generate_access_token(
+        user_id,
+        tenant_id,
+        "rotation@test.dev",
+        vec![],
+        vec![],
+        HashMap::new(),
+        old_secret,
+        15,
+    )
+    .expect("generate token with old secret");
+
+    // Current secret alone must reject it
+    let rejected = token_service::validate_access_token(&token, new_secret, None);
+    assert!(rejected.is_err(), "old token must fail without previous secret");
+
+    // With previous secret as fallback it must succeed
+    let claims = token_service::validate_access_token(&token, new_secret, Some(old_secret))
+        .expect("old token must validate with previous secret fallback");
+    assert_eq!(claims.sub, user_id.to_string());
+}
+
+#[tokio::test]
+async fn test_key_rotation_wrong_previous_still_rejected() {
+    dotenvy::dotenv().ok();
+    let cfg = Config::from_env().expect("config");
+
+    let token = token_service::generate_access_token(
+        Uuid::new_v4(),
+        Uuid::new_v4(),
+        "rotation2@test.dev",
+        vec![],
+        vec![],
+        HashMap::new(),
+        "totally-different-secret-32-chars!!",
+        15,
+    )
+    .expect("generate");
+
+    // Neither current nor a wrong previous should accept it
+    let result = token_service::validate_access_token(
+        &token,
+        &cfg.jwt_secret,
+        Some("also-wrong-previous-secret-32-chars"),
+    );
+    assert!(result.is_err(), "wrong secret must never validate");
+}
+
+// ── JTI blocklist ─────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn test_jti_revoked_after_blocklist() {
+    let (db, cfg, tenant_id, _tenant_key) = setup().await;
+
+    let token = token_service::generate_access_token(
+        Uuid::new_v4(),
+        tenant_id,
+        "jti@test.dev",
+        vec![],
+        vec![],
+        HashMap::new(),
+        &cfg.jwt_secret,
+        15,
+    )
+    .expect("generate token");
+
+    let claims = token_service::validate_access_token(&token, &cfg.jwt_secret, None)
+        .expect("validate");
+
+    // Not revoked initially
+    assert!(
+        !token_service::is_jti_revoked(&db, &claims.jti).await.unwrap(),
+        "fresh token must not be revoked"
+    );
+
+    let expires_at = chrono::DateTime::from_timestamp(claims.exp, 0)
+        .unwrap()
+        .fixed_offset();
+    token_service::revoke_jti(&db, &claims.jti, expires_at)
+        .await
+        .expect("revoke jti");
+
+    // Now marked as revoked
+    assert!(
+        token_service::is_jti_revoked(&db, &claims.jti).await.unwrap(),
+        "token must be revoked after blocklist insertion"
+    );
+}
+
+// NOTE: introspect handler (POST /oauth/introspect) calls validate_access_token
+// but does NOT check is_jti_revoked — it returns active:true for a JTI-revoked
+// token as long as the signature and expiry are valid. This is a known gap:
+// introspect is admin-only and short TTLs bound the risk, but a future improvement
+// should add the JTI check there too.
+
+// ── MFA backup codes ──────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn test_backup_codes_generate_and_consume() {
+    let (db, cfg, tenant_id, tenant_key) = setup().await;
+    let user = create_test_user(&db, &cfg, tenant_id, &tenant_key, "bkcodes@test.dev", "Pass1234!").await;
+
+    let txn = db::begin_tenant_txn(&db, tenant_id).await.unwrap();
+    let codes = mfa_service::generate_backup_codes(&txn, tenant_id, user.id)
+        .await
+        .expect("generate backup codes");
+    txn.commit().await.unwrap();
+
+    assert_eq!(codes.len(), mfa_service::BACKUP_CODE_COUNT, "must generate exactly 10 codes");
+    assert!(
+        codes.iter().all(|c| c.len() == 9 && c.contains('-')),
+        "codes must be in XXXX-XXXX format"
+    );
+
+    // First use of codes[0] succeeds
+    let txn = db::begin_tenant_txn(&db, tenant_id).await.unwrap();
+    let consumed = mfa_service::consume_backup_code(&txn, tenant_id, user.id, &codes[0])
+        .await
+        .expect("consume");
+    txn.commit().await.unwrap();
+    assert!(consumed, "first use must succeed");
+
+    // Second use of same code fails
+    let txn = db::begin_tenant_txn(&db, tenant_id).await.unwrap();
+    let reused = mfa_service::consume_backup_code(&txn, tenant_id, user.id, &codes[0])
+        .await
+        .expect("consume reuse");
+    txn.commit().await.unwrap();
+    assert!(!reused, "used code must not be reusable");
+
+    // Different code still works
+    let txn = db::begin_tenant_txn(&db, tenant_id).await.unwrap();
+    let second = mfa_service::consume_backup_code(&txn, tenant_id, user.id, &codes[1])
+        .await
+        .expect("consume second");
+    txn.commit().await.unwrap();
+    assert!(second, "unused code must still be consumable");
+}
+
+#[tokio::test]
+async fn test_backup_codes_regenerate_invalidates_previous() {
+    let (db, cfg, tenant_id, tenant_key) = setup().await;
+    let user = create_test_user(&db, &cfg, tenant_id, &tenant_key, "bkregen@test.dev", "Pass1234!").await;
+
+    let txn = db::begin_tenant_txn(&db, tenant_id).await.unwrap();
+    let first_set = mfa_service::generate_backup_codes(&txn, tenant_id, user.id)
+        .await
+        .unwrap();
+    txn.commit().await.unwrap();
+
+    // Regenerate — new set replaces old
+    let txn = db::begin_tenant_txn(&db, tenant_id).await.unwrap();
+    let _second_set = mfa_service::generate_backup_codes(&txn, tenant_id, user.id)
+        .await
+        .unwrap();
+    txn.commit().await.unwrap();
+
+    // Code from first set must no longer work
+    let txn = db::begin_tenant_txn(&db, tenant_id).await.unwrap();
+    let stale = mfa_service::consume_backup_code(&txn, tenant_id, user.id, &first_set[0])
+        .await
+        .unwrap();
+    txn.commit().await.unwrap();
+    assert!(!stale, "codes from previous generation must be invalidated");
+}
+
+// ── RBAC claims in token ──────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn test_rbac_roles_appear_in_token_claims() {
+    let (db, cfg, tenant_id, tenant_key) = setup().await;
+    let user = create_test_user(&db, &cfg, tenant_id, &tenant_key, "rbac@test.dev", "Pass1234!").await;
+
+    // Create role and assign to user
+    let txn = db::begin_tenant_txn(&db, tenant_id).await.unwrap();
+    let role = role_service::create(
+        &txn,
+        role_service::CreateRoleInput {
+            tenant_id,
+            name: "editor".into(),
+            description: "Can edit content".into(),
+        },
+    )
+    .await
+    .expect("create role");
+    role_service::assign(&txn, user.id, role.id, tenant_id)
+        .await
+        .expect("assign role");
+    txn.commit().await.unwrap();
+
+    // Fetch role names as the token flow would
+    let txn = db::begin_tenant_txn(&db, tenant_id).await.unwrap();
+    let role_names = role_service::list_names_for_user(&txn, user.id, tenant_id)
+        .await
+        .expect("list role names");
+    txn.commit().await.unwrap();
+
+    assert!(role_names.contains(&"editor".to_string()), "role must be returned by list_names_for_user");
+
+    // Generate token with those roles
+    let token = token_service::generate_access_token(
+        user.id,
+        tenant_id,
+        "rbac@test.dev",
+        role_names,
+        vec![],
+        HashMap::new(),
+        &cfg.jwt_secret,
+        15,
+    )
+    .expect("generate token");
+
+    let claims = token_service::validate_access_token(&token, &cfg.jwt_secret, None)
+        .expect("validate");
+
+    assert!(
+        claims.realm_access.roles.contains(&"editor".to_string()),
+        "role must appear in realm_access.roles claim"
+    );
+}
+
+#[tokio::test]
+async fn test_rbac_revoked_role_absent_from_new_token() {
+    let (db, cfg, tenant_id, tenant_key) = setup().await;
+    let user = create_test_user(&db, &cfg, tenant_id, &tenant_key, "rbac2@test.dev", "Pass1234!").await;
+
+    let txn = db::begin_tenant_txn(&db, tenant_id).await.unwrap();
+    let role = role_service::create(
+        &txn,
+        role_service::CreateRoleInput {
+            tenant_id,
+            name: "moderator".into(),
+            description: "".into(),
+        },
+    )
+    .await
+    .unwrap();
+    role_service::assign(&txn, user.id, role.id, tenant_id).await.unwrap();
+    txn.commit().await.unwrap();
+
+    // Revoke the role
+    let txn = db::begin_tenant_txn(&db, tenant_id).await.unwrap();
+    role_service::revoke(&txn, user.id, role.id).await.unwrap();
+    txn.commit().await.unwrap();
+
+    // New token must not carry the revoked role
+    let txn = db::begin_tenant_txn(&db, tenant_id).await.unwrap();
+    let role_names = role_service::list_names_for_user(&txn, user.id, tenant_id)
+        .await
+        .unwrap();
+    txn.commit().await.unwrap();
+
+    assert!(
+        !role_names.contains(&"moderator".to_string()),
+        "revoked role must not appear in list_names_for_user"
+    );
+
+    let token = token_service::generate_access_token(
+        user.id,
+        tenant_id,
+        "rbac2@test.dev",
+        role_names,
+        vec![],
+        HashMap::new(),
+        &cfg.jwt_secret,
+        15,
+    )
+    .unwrap();
+
+    let claims = token_service::validate_access_token(&token, &cfg.jwt_secret, None).unwrap();
+    assert!(
+        !claims.realm_access.roles.contains(&"moderator".to_string()),
+        "revoked role must not appear in token claims"
+    );
+}
+
+// ── Password history enforcement ──────────────────────────────────────────────
+
+#[tokio::test]
+async fn test_password_history_reuse_rejected() {
+    let (db, cfg, tenant_id, tenant_key) = setup().await;
+    let user = create_test_user(
+        &db, &cfg, tenant_id, &tenant_key, "histcheck@test.dev", "OldPass1!",
+    )
+    .await;
+
+    // Set history_size = 3 for this tenant
+    password_policy_service::upsert(&db, tenant_id, 8, false, false, false, 3)
+        .await
+        .expect("upsert policy");
+
+    let old_hash = hefesto::hash_password("OldPass1!").unwrap();
+
+    let txn = db::begin_tenant_txn(&db, tenant_id).await.unwrap();
+    password_history_service::record(&txn, tenant_id, user.id, &old_hash)
+        .await
+        .expect("record initial hash");
+    txn.commit().await.unwrap();
+
+    // Reusing the same password must be rejected
+    let txn = db::begin_tenant_txn(&db, tenant_id).await.unwrap();
+    let result = password_history_service::check(&txn, user.id, "OldPass1!", 3).await;
+    txn.commit().await.unwrap();
+    assert!(result.is_err(), "reusing a recent password must be rejected");
+}
+
+#[tokio::test]
+async fn test_password_history_new_password_accepted() {
+    let (db, cfg, tenant_id, tenant_key) = setup().await;
+    let user = create_test_user(
+        &db, &cfg, tenant_id, &tenant_key, "histok@test.dev", "OldPass2!",
+    )
+    .await;
+
+    let old_hash = hefesto::hash_password("OldPass2!").unwrap();
+
+    let txn = db::begin_tenant_txn(&db, tenant_id).await.unwrap();
+    password_history_service::record(&txn, tenant_id, user.id, &old_hash)
+        .await
+        .unwrap();
+    txn.commit().await.unwrap();
+
+    // Completely different password must pass the check
+    let txn = db::begin_tenant_txn(&db, tenant_id).await.unwrap();
+    let result = password_history_service::check(&txn, user.id, "NewPass99!", 3).await;
+    txn.commit().await.unwrap();
+    assert!(result.is_ok(), "new password must be accepted");
+}
+
+#[tokio::test]
+async fn test_password_history_skipped_when_size_zero() {
+    let (db, cfg, tenant_id, tenant_key) = setup().await;
+    let user = create_test_user(
+        &db, &cfg, tenant_id, &tenant_key, "histzero@test.dev", "AnyPass1!",
+    )
+    .await;
+
+    let hash = hefesto::hash_password("AnyPass1!").unwrap();
+    let txn = db::begin_tenant_txn(&db, tenant_id).await.unwrap();
+    password_history_service::record(&txn, tenant_id, user.id, &hash)
+        .await
+        .unwrap();
+    txn.commit().await.unwrap();
+
+    // history_size = 0 means no check — even reuse must pass
+    let txn = db::begin_tenant_txn(&db, tenant_id).await.unwrap();
+    let result = password_history_service::check(&txn, user.id, "AnyPass1!", 0).await;
+    txn.commit().await.unwrap();
+    assert!(result.is_ok(), "history_size=0 must skip the check entirely");
+}
+
+#[tokio::test]
+async fn test_password_history_window_boundary() {
+    let (db, cfg, tenant_id, tenant_key) = setup().await;
+    let user = create_test_user(
+        &db, &cfg, tenant_id, &tenant_key, "histwindow@test.dev", "Base1234!",
+    )
+    .await;
+
+    // Fill history with 3 entries: pw_a, pw_b, pw_c (oldest→newest)
+    for pw in &["HistA111!", "HistB222!", "HistC333!"] {
+        let h = hefesto::hash_password(pw).unwrap();
+        let txn = db::begin_tenant_txn(&db, tenant_id).await.unwrap();
+        password_history_service::record(&txn, tenant_id, user.id, &h).await.unwrap();
+        txn.commit().await.unwrap();
+    }
+
+    // With history_size=3, all three must be rejected
+    for pw in &["HistA111!", "HistB222!", "HistC333!"] {
+        let txn = db::begin_tenant_txn(&db, tenant_id).await.unwrap();
+        let r = password_history_service::check(&txn, user.id, pw, 3).await;
+        txn.commit().await.unwrap();
+        assert!(r.is_err(), "{pw} must be within the 3-entry window");
+    }
+
+    // A brand-new password must pass
+    let txn = db::begin_tenant_txn(&db, tenant_id).await.unwrap();
+    let ok = password_history_service::check(&txn, user.id, "FreshXYZ9!", 3).await;
+    txn.commit().await.unwrap();
+    assert!(ok.is_ok(), "password outside the window must be accepted");
 }

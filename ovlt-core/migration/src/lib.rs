@@ -26,6 +26,7 @@ mod m20240101_000023_tenant_smtp_config;
 mod m20240101_000024_webauthn_credentials;
 mod m20240101_000025_rate_limit_buckets;
 mod m20240101_000026_mfa_backup_codes;
+mod m20240101_000027_password_history;
 
 pub struct Migrator;
 
@@ -59,6 +60,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20240101_000024_webauthn_credentials::Migration),
             Box::new(m20240101_000025_rate_limit_buckets::Migration),
             Box::new(m20240101_000026_mfa_backup_codes::Migration),
+            Box::new(m20240101_000027_password_history::Migration),
         ]
     }
 }
