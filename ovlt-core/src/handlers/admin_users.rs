@@ -14,8 +14,8 @@ use crate::{
     error::{validation_to_app_error, AppError},
     handlers::admin_auth,
     services::{
-        mfa_service, one_time_token_service, password_history_service, password_policy_service,
-        tenant_service, user_service,
+        audit_service, mfa_service, one_time_token_service, password_history_service,
+        password_policy_service, tenant_service, user_service,
     },
     state::AppState,
 };
@@ -132,6 +132,7 @@ pub async fn create_user(
     headers: HeaderMap,
     Json(payload): Json<CreateUserRequest>,
 ) -> Result<impl IntoResponse, AppError> {
+    let actor = admin_auth::extract_actor(&headers, &state.config);
     admin_auth::require_admin(
         &headers,
         &state.config,
@@ -177,6 +178,11 @@ pub async fn create_user(
     .await?;
 
     txn.commit().await?;
+
+    audit_service::record_best_effort(
+        state.db.clone(),
+        audit_service::AuditEvent::new(tenant_id, actor, "user.created", serde_json::json!({"user_id": user.id})),
+    );
 
     Ok((
         StatusCode::CREATED,
@@ -224,6 +230,7 @@ pub async fn update_user(
     Path(id): Path<Uuid>,
     Json(payload): Json<UpdateUserRequest>,
 ) -> Result<impl IntoResponse, AppError> {
+    let actor = admin_auth::extract_actor(&headers, &state.config);
     admin_auth::require_admin(
         &headers,
         &state.config,
@@ -265,6 +272,11 @@ pub async fn update_user(
 
     txn.commit().await?;
 
+    audit_service::record_best_effort(
+        state.db.clone(),
+        audit_service::AuditEvent::new(tenant_id, actor, "user.updated", serde_json::json!({"user_id": id, "is_active": payload.is_active})),
+    );
+
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -289,6 +301,7 @@ pub async fn deactivate_user(
     headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
+    let actor = admin_auth::extract_actor(&headers, &state.config);
     admin_auth::require_admin(
         &headers,
         &state.config,
@@ -299,6 +312,11 @@ pub async fn deactivate_user(
     let txn = db::begin_tenant_txn(&state.db, tenant_id).await?;
     user_service::deactivate(&txn, id).await?;
     txn.commit().await?;
+
+    audit_service::record_best_effort(
+        state.db.clone(),
+        audit_service::AuditEvent::new(tenant_id, actor, "user.deactivated", serde_json::json!({"user_id": id})),
+    );
 
     Ok(StatusCode::NO_CONTENT)
 }

@@ -3,6 +3,23 @@ use uuid::Uuid;
 
 use crate::{config::Config, error::AppError, services::token_service};
 
+/// Extract the acting user's UUID from a Bearer JWT in the Authorization header.
+/// Returns `None` if no token is present or validation fails — callers record
+/// `None` as the actor when the request comes from a script using only the admin key.
+pub fn extract_actor(headers: &HeaderMap, config: &Config) -> Option<Uuid> {
+    let bearer = headers
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))?;
+    let claims = token_service::validate_access_token(
+        bearer,
+        &config.jwt_secret,
+        config.jwt_secret_previous.as_deref(),
+    )
+    .ok()?;
+    Uuid::parse_str(&claims.sub).ok()
+}
+
 /// Accept any of:
 /// 1. X-OVLT-Admin-Key header matching the configured key.
 /// 2. Bearer JWT from the master tenant.

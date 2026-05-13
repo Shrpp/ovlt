@@ -10,7 +10,7 @@ use crate::{
     error::AppError,
     extractors::TenantDb,
     middleware::auth::AuthUser,
-    services::{session_service, token_service},
+    services::{audit_service, session_service, token_service},
     state::AppState,
 };
 
@@ -42,7 +42,7 @@ pub async fn logout(
     db: TenantDb,
     Json(payload): Json<LogoutRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let TenantDb { txn, .. } = db;
+    let TenantDb { txn, tenant_id, .. } = db;
 
     // Revoke the access token JTI (cross-tenant table, uses raw connection intentionally).
     let exp = chrono::DateTime::from_timestamp(
@@ -72,6 +72,11 @@ pub async fn logout(
         }
     }
     txn.commit().await?;
+
+    audit_service::record_best_effort(
+        state.db.clone(),
+        audit_service::AuditEvent::new(tenant_id, Some(auth.user_id), "user.logout", serde_json::json!({})),
+    );
 
     // Delete session cookie if present.
     if let Some(session_id) = get_session_cookie(&headers) {

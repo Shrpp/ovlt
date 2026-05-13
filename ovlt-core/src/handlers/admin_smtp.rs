@@ -9,7 +9,7 @@ use crate::{
     entity::tenant_smtp_config,
     error::{validation_to_app_error, AppError},
     handlers::admin_auth,
-    services::tenant_service,
+    services::{audit_service, tenant_service},
     state::AppState,
 };
 
@@ -123,10 +123,12 @@ pub async fn put_smtp(
     headers: HeaderMap,
     Json(req): Json<UpsertSmtpRequest>,
 ) -> Result<impl IntoResponse, AppError> {
+    let actor = admin_auth::extract_actor(&headers, &state.config);
     require_admin(&state, &headers)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
     req.validate().map_err(validation_to_app_error)?;
+    let smtp_host = req.host.clone();
 
     let tenant = tenant_service::find_active(&state.db, tenant_id).await?;
     let tenant_key = hefesto::decrypt(
@@ -182,6 +184,11 @@ pub async fn put_smtp(
         .insert(&state.db)
         .await?;
     }
+
+    audit_service::record_best_effort(
+        state.db.clone(),
+        audit_service::AuditEvent::new(tenant_id, actor, "smtp.updated", serde_json::json!({"host": smtp_host.as_str()})),
+    );
 
     Ok(Json(serde_json::json!({ "message": "SMTP config saved" })))
 }

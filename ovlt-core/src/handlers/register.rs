@@ -93,13 +93,9 @@ pub async fn register(
 
     txn.commit().await?;
 
-    audit_service::record(
+    audit_service::record_best_effort(
         state.db.clone(),
-        tenant_id,
-        Some(user.id),
-        "user.registered",
-        Some(addr.ip().to_string()),
-        None,
+        audit_service::AuditEvent::new(tenant_id, Some(user.id), "user.registered", serde_json::json!({"ip": addr.ip().to_string()})),
     );
 
     if settings.require_email_verified {

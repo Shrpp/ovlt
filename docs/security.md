@@ -129,6 +129,38 @@ When a user enables TOTP, they can generate a set of **10 single-use recovery co
 - Generating a new set invalidates all previous codes atomically
 - Disabling TOTP (user or admin) purges all backup codes for that user
 
+## Audit log
+
+All mutating operations are recorded in `audit_log` (per-tenant, RLS-isolated). Read-only requests are not logged. Each entry includes:
+
+| Field | Description |
+|-------|-------------|
+| `action` | Dot-notation event name (e.g. `login.success`, `user.created`) |
+| `user_id` | Actor UUID — the JWT `sub` of the caller, or `null` for static admin-key requests |
+| `ip` | Client IP for auth events (encoded in `metadata`) |
+| `metadata` | JSON object with event-specific context (target IDs, names, etc.) |
+| `created_at` | UTC timestamp |
+
+Events logged (mutations only):
+
+| Category | Events |
+|----------|--------|
+| Auth | `login.success`, `login.failed.wrong_password`, `login.failed.unknown_email`, `login.locked`, `login.webauthn.success`, `user.logout`, `user.registered`, `user.password.reset` |
+| MFA | `mfa.enabled`, `mfa.disabled`, `mfa.backup_codes.generated`, `mfa.admin.disabled` |
+| Admin — tenants | `tenant.created` |
+| Admin — clients | `client.created`, `client.updated`, `client.deactivated` |
+| Admin — users | `user.created`, `user.updated`, `user.deactivated` |
+| Admin — roles | `role.created`, `role.updated`, `role.deleted`, `user.role.assigned`, `user.role.revoked`, `client.role.assigned`, `client.role.revoked` |
+| Admin — permissions | `permission.created`, `permission.updated`, `permission.deleted`, `role.permission.assigned`, `role.permission.revoked` |
+| Admin — sessions | `session.deleted` |
+| Admin — SMTP | `smtp.updated` |
+| Admin — IdP | `idp.created`, `idp.updated`, `idp.deleted` |
+| Admin — WebAuthn | `passkey.deleted` |
+
+**Actor attribution** — admin events record the JWT `sub` of the Bearer token if present. Requests authenticated only via `X-OVLT-Admin-Key` record `user_id = null`.
+
+**Export** — `GET /audit-log?limit=N` (max 10,000) returns the most recent N entries ordered by time descending. In the TUI, press `x` in the Audit Log tab to export up to 10,000 entries as a CSV file written to `~/ovlt-audit-<tenant-id>-<unix-ts>.csv`.
+
 ## Threat model
 
 | Threat | Mitigation |

@@ -29,3 +29,4 @@ uuid        = { version = "1", features = ["v4"] }
 dirs        = "5"
 thiserror   = "1"
 arboard     = "3"
+csv         = "1"

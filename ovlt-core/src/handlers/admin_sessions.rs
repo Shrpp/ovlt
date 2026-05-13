@@ -7,7 +7,12 @@ use axum::{
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::{error::AppError, handlers::admin_auth, services::session_service, state::AppState};
+use crate::{
+    error::AppError,
+    handlers::admin_auth,
+    services::{audit_service, session_service},
+    state::AppState,
+};
 
 fn extract_tenant_id(headers: &HeaderMap) -> Result<Uuid, AppError> {
     headers
@@ -96,6 +101,7 @@ pub async fn delete_session(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
+    let actor = admin_auth::extract_actor(&headers, &state.config);
     admin_auth::require_admin(
         &headers,
         &state.config,
@@ -107,6 +113,10 @@ pub async fn delete_session(
     if let Some(session) = session_service::find_valid(&state.db, &id).await? {
         if session.tenant_id == tenant_id {
             session_service::delete(&state.db, &id).await?;
+            audit_service::record_best_effort(
+                state.db.clone(),
+                audit_service::AuditEvent::new(tenant_id, actor, "session.deleted", serde_json::json!({"session_id": id.as_str()})),
+            );
         }
     }
 

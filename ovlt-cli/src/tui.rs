@@ -2118,6 +2118,13 @@ async fn handle_content_key(app: &mut App, code: KeyCode) {
                 }
             }
         },
+        KeyCode::Char('x') => {
+            if app.tab == Tab::AuditLog {
+                if let Some(tid) = app.active_tenant_id.clone() {
+                    export_audit_log_csv(app, tid).await;
+                }
+            }
+        }
         _ => {}
     }
 }
@@ -2786,6 +2793,44 @@ async fn load_audit_log(app: &mut App, tenant_id: String) {
         Err(e) => on_load_err(app, e, "AuditLog"),
     }
     app.audit_log_loading = false;
+}
+
+async fn export_audit_log_csv(app: &mut App, tenant_id: String) {
+    app.set_status("Exporting audit log...".to_string());
+    match app.client.export_audit_log(&tenant_id, 10_000).await {
+        Ok(entries) => {
+            let ts = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+            let filename = format!("ovlt-audit-{tenant_id}-{ts}.csv");
+            let path = dirs::home_dir()
+                .unwrap_or_else(|| std::path::PathBuf::from("."))
+                .join(&filename);
+            match write_audit_csv(&path, &entries) {
+                Ok(()) => app.set_status(format!("Exported {} rows -> {}", entries.len(), path.display())),
+                Err(e) => app.set_status(format!("Export failed: {e}")),
+            }
+        }
+        Err(e) => app.set_status(format!("Export failed: {e}")),
+    }
+}
+
+fn write_audit_csv(path: &std::path::Path, entries: &[crate::api::AuditLogEntry]) -> Result<(), Box<dyn std::error::Error>> {
+    let mut wtr = csv::Writer::from_path(path)?;
+    wtr.write_record(["id", "created_at", "action", "user_id", "ip", "metadata"])?;
+    for e in entries {
+        wtr.write_record([
+            e.id.as_str(),
+            e.created_at.as_str(),
+            e.action.as_str(),
+            e.user_id.as_deref().unwrap_or(""),
+            e.ip.as_deref().unwrap_or(""),
+            e.metadata.as_deref().unwrap_or(""),
+        ])?;
+    }
+    wtr.flush()?;
+    Ok(())
 }
 
 async fn perform_create_idp(

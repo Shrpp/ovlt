@@ -13,8 +13,8 @@ use crate::{
     handlers::admin_auth,
     middleware::{auth::AuthUser, tenant::TenantContext},
     services::{
-        mfa_service, permission_service, role_service, session_service, tenant_settings_service,
-        token_service, user_service,
+        audit_service, mfa_service, permission_service, role_service, session_service,
+        tenant_settings_service, token_service, user_service,
     },
     state::AppState,
 };
@@ -127,6 +127,11 @@ pub async fn mfa_confirm(
     mfa_service::activate(&txn, ctx.tenant_id, auth.user_id).await?;
     txn.commit().await?;
 
+    audit_service::record_best_effort(
+        state.db.clone(),
+        audit_service::AuditEvent::new(ctx.tenant_id, Some(auth.user_id), "mfa.enabled", serde_json::json!({})),
+    );
+
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -174,6 +179,11 @@ pub async fn mfa_disable(
     mfa_service::disable(&txn, ctx.tenant_id, auth.user_id).await?;
     mfa_service::delete_backup_codes(&txn, ctx.tenant_id, auth.user_id).await?;
     txn.commit().await?;
+
+    audit_service::record_best_effort(
+        state.db.clone(),
+        audit_service::AuditEvent::new(ctx.tenant_id, Some(auth.user_id), "mfa.disabled", serde_json::json!({})),
+    );
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -232,6 +242,11 @@ pub async fn mfa_backup_codes_generate(
     let codes =
         mfa_service::generate_backup_codes(&txn, ctx.tenant_id, auth.user_id).await?;
     txn.commit().await?;
+
+    audit_service::record_best_effort(
+        state.db.clone(),
+        audit_service::AuditEvent::new(ctx.tenant_id, Some(auth.user_id), "mfa.backup_codes.generated", serde_json::json!({})),
+    );
 
     Ok(Json(BackupCodesResponse { codes }))
 }
@@ -416,6 +431,7 @@ pub async fn admin_disable_mfa(
     headers: HeaderMap,
     Path(user_id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
+    let actor = admin_auth::extract_actor(&headers, &state.config);
     admin_auth::require_admin(
         &headers,
         &state.config,
@@ -427,6 +443,11 @@ pub async fn admin_disable_mfa(
     mfa_service::disable(&txn, tenant_id, user_id).await?;
     mfa_service::delete_backup_codes(&txn, tenant_id, user_id).await?;
     txn.commit().await?;
+
+    audit_service::record_best_effort(
+        state.db.clone(),
+        audit_service::AuditEvent::new(tenant_id, actor, "mfa.admin.disabled", serde_json::json!({"user_id": user_id})),
+    );
 
     Ok(StatusCode::NO_CONTENT)
 }

@@ -9,8 +9,8 @@ use crate::{
     error::{validation_to_app_error, AppError},
     middleware::tenant::TenantContext,
     services::{
-        one_time_token_service, password_history_service, password_policy_service, token_service,
-        user_service,
+        audit_service, one_time_token_service, password_history_service, password_policy_service,
+        token_service, user_service,
     },
     state::AppState,
 };
@@ -87,6 +87,11 @@ pub async fn reset_password(
     token_service::revoke_all_user_tokens(&txn, record.user_id).await?;
 
     txn.commit().await?;
+
+    audit_service::record_best_effort(
+        state.db.clone(),
+        audit_service::AuditEvent::new(ctx.tenant_id, Some(record.user_id), "user.password.reset", serde_json::json!({})),
+    );
 
     Ok(Json(
         serde_json::json!({ "message": "password updated successfully" }),

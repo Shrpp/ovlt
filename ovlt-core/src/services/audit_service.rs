@@ -1,31 +1,57 @@
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, DatabaseConnection, Set};
+use sea_orm::{ActiveModelTrait, ConnectionTrait, DatabaseConnection, Set};
 use uuid::Uuid;
 
-use crate::entity::audit_log;
+use crate::{entity::audit_log, error::AppError};
 
-/// Fire-and-forget audit log write. Never blocks the request path.
-pub fn record(
-    db: DatabaseConnection,
-    tenant_id: Uuid,
-    user_id: Option<Uuid>,
-    action: impl Into<String> + Send + 'static,
-    ip: Option<String>,
-    metadata: Option<String>,
-) {
-    let action = action.into();
+pub struct AuditEvent {
+    pub tenant_id: Uuid,
+    pub actor_id: Option<Uuid>,
+    pub action: String,
+    pub metadata: serde_json::Value,
+}
+
+impl AuditEvent {
+    pub fn new(
+        tenant_id: Uuid,
+        actor_id: Option<Uuid>,
+        action: impl Into<String>,
+        metadata: serde_json::Value,
+    ) -> Self {
+        Self {
+            tenant_id,
+            actor_id,
+            action: action.into(),
+            metadata,
+        }
+    }
+}
+
+fn build_model(event: &AuditEvent) -> audit_log::ActiveModel {
+    audit_log::ActiveModel {
+        id: Set(Uuid::new_v4()),
+        tenant_id: Set(event.tenant_id),
+        user_id: Set(event.actor_id),
+        action: Set(event.action.clone()),
+        ip: Set(event.metadata.get("ip").and_then(|v| v.as_str()).map(|s| s.to_owned())),
+        metadata: Set(Some(event.metadata.to_string())),
+        created_at: Set(Utc::now().fixed_offset()),
+    }
+}
+
+/// Synchronous audit write — use inside an existing transaction.
+/// The insert shares the transaction; if it fails the whole operation rolls back.
+pub async fn record<C: ConnectionTrait>(db: &C, event: AuditEvent) -> Result<(), AppError> {
+    build_model(&event).insert(db).await?;
+    Ok(())
+}
+
+/// Fire-and-forget audit write — for events where losing the log entry is
+/// acceptable (e.g. informational reads, non-critical failures).
+pub fn record_best_effort(db: DatabaseConnection, event: AuditEvent) {
     tokio::spawn(async move {
-        let entry = audit_log::ActiveModel {
-            id: Set(Uuid::new_v4()),
-            tenant_id: Set(tenant_id),
-            user_id: Set(user_id),
-            action: Set(action),
-            ip: Set(ip),
-            metadata: Set(metadata),
-            created_at: Set(Utc::now().fixed_offset()),
-        };
-        if let Err(e) = entry.insert(&db).await {
-            tracing::warn!("audit log write failed: {e}");
+        if let Err(e) = build_model(&event).insert(&db).await {
+            tracing::warn!(action = %event.action, "audit log write failed: {e}");
         }
     });
 }
