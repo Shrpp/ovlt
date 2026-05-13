@@ -883,7 +883,11 @@ impl Client {
         self.check(resp).await
     }
 
-    pub async fn export_audit_log(&self, tenant_id: &str, limit: u64) -> ApiResult<Vec<AuditLogEntry>> {
+    pub async fn export_audit_log(
+        &self,
+        tenant_id: &str,
+        limit: u64,
+    ) -> ApiResult<Vec<AuditLogEntry>> {
         let resp = self
             .inner
             .get(format!("{}/audit-log?limit={limit}", self.base_url))

@@ -129,7 +129,12 @@ pub async fn mfa_confirm(
 
     audit_service::record_best_effort(
         state.db.clone(),
-        audit_service::AuditEvent::new(ctx.tenant_id, Some(auth.user_id), "mfa.enabled", serde_json::json!({})),
+        audit_service::AuditEvent::new(
+            ctx.tenant_id,
+            Some(auth.user_id),
+            "mfa.enabled",
+            serde_json::json!({}),
+        ),
     );
 
     Ok(StatusCode::NO_CONTENT)
@@ -182,7 +187,12 @@ pub async fn mfa_disable(
 
     audit_service::record_best_effort(
         state.db.clone(),
-        audit_service::AuditEvent::new(ctx.tenant_id, Some(auth.user_id), "mfa.disabled", serde_json::json!({})),
+        audit_service::AuditEvent::new(
+            ctx.tenant_id,
+            Some(auth.user_id),
+            "mfa.disabled",
+            serde_json::json!({}),
+        ),
     );
 
     Ok(StatusCode::NO_CONTENT)
@@ -239,13 +249,17 @@ pub async fn mfa_backup_codes_generate(
         return Err(AppError::Unauthorized);
     }
 
-    let codes =
-        mfa_service::generate_backup_codes(&txn, ctx.tenant_id, auth.user_id).await?;
+    let codes = mfa_service::generate_backup_codes(&txn, ctx.tenant_id, auth.user_id).await?;
     txn.commit().await?;
 
     audit_service::record_best_effort(
         state.db.clone(),
-        audit_service::AuditEvent::new(ctx.tenant_id, Some(auth.user_id), "mfa.backup_codes.generated", serde_json::json!({})),
+        audit_service::AuditEvent::new(
+            ctx.tenant_id,
+            Some(auth.user_id),
+            "mfa.backup_codes.generated",
+            serde_json::json!({}),
+        ),
     );
 
     Ok(Json(BackupCodesResponse { codes }))
@@ -432,11 +446,7 @@ pub async fn admin_disable_mfa(
     Path(user_id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
     let actor = admin_auth::extract_actor(&headers, &state.config);
-    admin_auth::require_admin(
-        &headers,
-        &state.config,
-        state.master_tenant_id,
-    )?;
+    admin_auth::require_admin(&headers, &state.config, state.master_tenant_id)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
     let txn = db::begin_tenant_txn(&state.db, tenant_id).await?;
@@ -446,7 +456,12 @@ pub async fn admin_disable_mfa(
 
     audit_service::record_best_effort(
         state.db.clone(),
-        audit_service::AuditEvent::new(tenant_id, actor, "mfa.admin.disabled", serde_json::json!({"user_id": user_id})),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "mfa.admin.disabled",
+            serde_json::json!({"user_id": user_id}),
+        ),
     );
 
     Ok(StatusCode::NO_CONTENT)

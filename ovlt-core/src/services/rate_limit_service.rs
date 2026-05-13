@@ -11,10 +11,7 @@ pub const MAX_REQUESTS: i32 = 20;
 ///
 /// Uses a single `INSERT ... ON CONFLICT DO UPDATE RETURNING count` — safe across
 /// multiple replicas sharing the same PostgreSQL instance.
-pub async fn check_and_increment(
-    db: &DatabaseConnection,
-    key: &str,
-) -> Result<bool, AppError> {
+pub async fn check_and_increment(db: &DatabaseConnection, key: &str) -> Result<bool, AppError> {
     let now = Utc::now();
     let window_start: i64 = now.timestamp() / WINDOW_SECS;
     let expires_at = (now + chrono::Duration::seconds(WINDOW_SECS * 2)).fixed_offset();

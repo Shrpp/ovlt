@@ -75,11 +75,7 @@ pub async fn create_client(
     Json(payload): Json<CreateClientRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     let actor = admin_auth::extract_actor(&headers, &state.config);
-    admin_auth::require_admin(
-        &headers,
-        &state.config,
-        state.master_tenant_id,
-    )?;
+    admin_auth::require_admin(&headers, &state.config, state.master_tenant_id)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
     payload.validate().map_err(validation_to_app_error)?;
@@ -121,7 +117,12 @@ pub async fn create_client(
 
     audit_service::record_best_effort(
         state.db.clone(),
-        audit_service::AuditEvent::new(tenant_id, actor, "client.created", serde_json::json!({"client_id": model.client_id.as_str(), "name": model.name.as_str()})),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "client.created",
+            serde_json::json!({"client_id": model.client_id.as_str(), "name": model.name.as_str()}),
+        ),
     );
 
     Ok((
@@ -162,11 +163,7 @@ pub async fn list_clients(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<impl IntoResponse, AppError> {
-    admin_auth::require_admin(
-        &headers,
-        &state.config,
-        state.master_tenant_id,
-    )?;
+    admin_auth::require_admin(&headers, &state.config, state.master_tenant_id)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
     let txn = db::begin_tenant_txn(&state.db, tenant_id).await?;
@@ -231,11 +228,7 @@ pub async fn update_client(
     Json(payload): Json<UpdateClientRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     let actor = admin_auth::extract_actor(&headers, &state.config);
-    admin_auth::require_admin(
-        &headers,
-        &state.config,
-        state.master_tenant_id,
-    )?;
+    admin_auth::require_admin(&headers, &state.config, state.master_tenant_id)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
     payload.validate().map_err(validation_to_app_error)?;
@@ -272,7 +265,12 @@ pub async fn update_client(
 
     audit_service::record_best_effort(
         state.db.clone(),
-        audit_service::AuditEvent::new(tenant_id, actor, "client.updated", serde_json::json!({"client_uuid": id})),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "client.updated",
+            serde_json::json!({"client_uuid": id}),
+        ),
     );
 
     Ok(Json(ClientResponse {
@@ -313,11 +311,7 @@ pub async fn deactivate_client(
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
     let actor = admin_auth::extract_actor(&headers, &state.config);
-    admin_auth::require_admin(
-        &headers,
-        &state.config,
-        state.master_tenant_id,
-    )?;
+    admin_auth::require_admin(&headers, &state.config, state.master_tenant_id)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
     let txn = db::begin_tenant_txn(&state.db, tenant_id).await?;
@@ -326,7 +320,12 @@ pub async fn deactivate_client(
 
     audit_service::record_best_effort(
         state.db.clone(),
-        audit_service::AuditEvent::new(tenant_id, actor, "client.deactivated", serde_json::json!({"client_uuid": id})),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "client.deactivated",
+            serde_json::json!({"client_uuid": id}),
+        ),
     );
 
     Ok(StatusCode::NO_CONTENT)

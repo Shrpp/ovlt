@@ -41,7 +41,9 @@ pub async fn verify_email(
 ) -> Result<impl IntoResponse, AppError> {
     payload.validate().map_err(validation_to_app_error)?;
 
-    let TenantDb { txn, tenant_key, .. } = db;
+    let TenantDb {
+        txn, tenant_key, ..
+    } = db;
 
     let email_normalized = payload.email.trim().to_lowercase();
     let email_lookup = hefesto::hash_for_lookup(&email_normalized, &tenant_key)?;

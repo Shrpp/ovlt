@@ -55,7 +55,11 @@ pub async fn register(
 ) -> Result<impl IntoResponse, AppError> {
     payload.validate().map_err(validation_to_app_error)?;
 
-    let TenantDb { txn, tenant_id, tenant_key } = db;
+    let TenantDb {
+        txn,
+        tenant_id,
+        tenant_key,
+    } = db;
 
     // Settings and policy reads go through the RLS-scoped transaction.
     let settings = tenant_settings_service::get(&txn, tenant_id).await?;
@@ -95,7 +99,12 @@ pub async fn register(
 
     audit_service::record_best_effort(
         state.db.clone(),
-        audit_service::AuditEvent::new(tenant_id, Some(user.id), "user.registered", serde_json::json!({"ip": addr.ip().to_string()})),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            Some(user.id),
+            "user.registered",
+            serde_json::json!({"ip": addr.ip().to_string()}),
+        ),
     );
 
     if settings.require_email_verified {

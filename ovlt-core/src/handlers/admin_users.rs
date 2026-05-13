@@ -71,11 +71,7 @@ pub async fn list_users(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<impl IntoResponse, AppError> {
-    admin_auth::require_admin(
-        &headers,
-        &state.config,
-        state.master_tenant_id,
-    )?;
+    admin_auth::require_admin(&headers, &state.config, state.master_tenant_id)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
     let tenant = tenant_service::find_active(&state.db, tenant_id).await?;
@@ -133,11 +129,7 @@ pub async fn create_user(
     Json(payload): Json<CreateUserRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     let actor = admin_auth::extract_actor(&headers, &state.config);
-    admin_auth::require_admin(
-        &headers,
-        &state.config,
-        state.master_tenant_id,
-    )?;
+    admin_auth::require_admin(&headers, &state.config, state.master_tenant_id)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
     payload.validate().map_err(validation_to_app_error)?;
@@ -181,7 +173,12 @@ pub async fn create_user(
 
     audit_service::record_best_effort(
         state.db.clone(),
-        audit_service::AuditEvent::new(tenant_id, actor, "user.created", serde_json::json!({"user_id": user.id})),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "user.created",
+            serde_json::json!({"user_id": user.id}),
+        ),
     );
 
     Ok((
@@ -231,11 +228,7 @@ pub async fn update_user(
     Json(payload): Json<UpdateUserRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     let actor = admin_auth::extract_actor(&headers, &state.config);
-    admin_auth::require_admin(
-        &headers,
-        &state.config,
-        state.master_tenant_id,
-    )?;
+    admin_auth::require_admin(&headers, &state.config, state.master_tenant_id)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
     payload.validate().map_err(validation_to_app_error)?;
@@ -274,7 +267,12 @@ pub async fn update_user(
 
     audit_service::record_best_effort(
         state.db.clone(),
-        audit_service::AuditEvent::new(tenant_id, actor, "user.updated", serde_json::json!({"user_id": id, "is_active": payload.is_active})),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "user.updated",
+            serde_json::json!({"user_id": id, "is_active": payload.is_active}),
+        ),
     );
 
     Ok(StatusCode::NO_CONTENT)
@@ -302,11 +300,7 @@ pub async fn deactivate_user(
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
     let actor = admin_auth::extract_actor(&headers, &state.config);
-    admin_auth::require_admin(
-        &headers,
-        &state.config,
-        state.master_tenant_id,
-    )?;
+    admin_auth::require_admin(&headers, &state.config, state.master_tenant_id)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
     let txn = db::begin_tenant_txn(&state.db, tenant_id).await?;
@@ -315,7 +309,12 @@ pub async fn deactivate_user(
 
     audit_service::record_best_effort(
         state.db.clone(),
-        audit_service::AuditEvent::new(tenant_id, actor, "user.deactivated", serde_json::json!({"user_id": id})),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "user.deactivated",
+            serde_json::json!({"user_id": id}),
+        ),
     );
 
     Ok(StatusCode::NO_CONTENT)
@@ -342,11 +341,7 @@ pub async fn get_verification_code(
     headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
-    admin_auth::require_admin(
-        &headers,
-        &state.config,
-        state.master_tenant_id,
-    )?;
+    admin_auth::require_admin(&headers, &state.config, state.master_tenant_id)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
     let otp = one_time_token_service::generate_otp();
@@ -385,11 +380,7 @@ pub async fn get_password_reset_token(
     headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
-    admin_auth::require_admin(
-        &headers,
-        &state.config,
-        state.master_tenant_id,
-    )?;
+    admin_auth::require_admin(&headers, &state.config, state.master_tenant_id)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
     let token = one_time_token_service::generate();

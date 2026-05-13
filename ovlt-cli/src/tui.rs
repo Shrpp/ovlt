@@ -2808,7 +2808,11 @@ async fn export_audit_log_csv(app: &mut App, tenant_id: String) {
                 .unwrap_or_else(|| std::path::PathBuf::from("."))
                 .join(&filename);
             match write_audit_csv(&path, &entries) {
-                Ok(()) => app.set_status(format!("Exported {} rows -> {}", entries.len(), path.display())),
+                Ok(()) => app.set_status(format!(
+                    "Exported {} rows -> {}",
+                    entries.len(),
+                    path.display()
+                )),
                 Err(e) => app.set_status(format!("Export failed: {e}")),
             }
         }
@@ -2816,7 +2820,10 @@ async fn export_audit_log_csv(app: &mut App, tenant_id: String) {
     }
 }
 
-fn write_audit_csv(path: &std::path::Path, entries: &[crate::api::AuditLogEntry]) -> Result<(), Box<dyn std::error::Error>> {
+fn write_audit_csv(
+    path: &std::path::Path,
+    entries: &[crate::api::AuditLogEntry],
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut wtr = csv::Writer::from_path(path)?;
     wtr.write_record(["id", "created_at", "action", "user_id", "ip", "metadata"])?;
     for e in entries {

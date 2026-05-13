@@ -1,9 +1,9 @@
 pub mod audit_log;
-pub mod mfa_backup_codes;
 pub mod authorization_codes;
 pub mod client_roles;
 pub mod identity_providers;
 pub mod login_attempts;
+pub mod mfa_backup_codes;
 pub mod oauth_accounts;
 pub mod oauth_clients;
 pub mod one_time_tokens;

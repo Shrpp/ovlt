@@ -33,7 +33,11 @@ fn build_model(event: &AuditEvent) -> audit_log::ActiveModel {
         tenant_id: Set(event.tenant_id),
         user_id: Set(event.actor_id),
         action: Set(event.action.clone()),
-        ip: Set(event.metadata.get("ip").and_then(|v| v.as_str()).map(|s| s.to_owned())),
+        ip: Set(event
+            .metadata
+            .get("ip")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_owned())),
         metadata: Set(Some(event.metadata.to_string())),
         created_at: Set(Utc::now().fixed_offset()),
     }

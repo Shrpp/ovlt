@@ -25,12 +25,7 @@ fn extract_tenant_id(headers: &HeaderMap) -> Result<Uuid, AppError> {
 }
 
 fn require_admin(state: &AppState, headers: &HeaderMap) -> Result<(), AppError> {
-    admin_auth::require_admin(
-        headers,
-        &state.config,
-state.master_tenant_id,
-    )
-    .map(|_| ())
+    admin_auth::require_admin(headers, &state.config, state.master_tenant_id).map(|_| ())
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
@@ -171,7 +166,12 @@ pub async fn create_idp(
 
     audit_service::record_best_effort(
         state.db.clone(),
-        audit_service::AuditEvent::new(tenant_id, actor, "idp.created", serde_json::json!({"idp_id": idp.id, "provider": idp.provider.as_str()})),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "idp.created",
+            serde_json::json!({"idp_id": idp.id, "provider": idp.provider.as_str()}),
+        ),
     );
 
     Ok((
@@ -249,7 +249,12 @@ pub async fn update_idp(
 
     audit_service::record_best_effort(
         state.db.clone(),
-        audit_service::AuditEvent::new(tenant_id, actor, "idp.updated", serde_json::json!({"idp_id": id})),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "idp.updated",
+            serde_json::json!({"idp_id": id}),
+        ),
     );
 
     Ok(Json(IdpResponse {
@@ -294,7 +299,12 @@ pub async fn delete_idp(
 
     audit_service::record_best_effort(
         state.db.clone(),
-        audit_service::AuditEvent::new(tenant_id, actor, "idp.deleted", serde_json::json!({"idp_id": id})),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "idp.deleted",
+            serde_json::json!({"idp_id": id}),
+        ),
     );
 
     Ok(StatusCode::NO_CONTENT)

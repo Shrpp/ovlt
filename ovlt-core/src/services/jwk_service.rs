@@ -22,7 +22,10 @@ impl JwkService {
         Self::build(Self::parse_pem_b64(b64)?, None)
     }
 
-    pub fn from_pem_b64_with_previous(current_b64: &str, previous_b64: &str) -> Result<Self, String> {
+    pub fn from_pem_b64_with_previous(
+        current_b64: &str,
+        previous_b64: &str,
+    ) -> Result<Self, String> {
         Self::build(
             Self::parse_pem_b64(current_b64)?,
             Some(Self::parse_pem_b64(previous_b64)?),
@@ -33,8 +36,8 @@ impl JwkService {
         let pem_bytes = STANDARD
             .decode(b64.trim())
             .map_err(|e| format!("invalid base64 for RSA key: {e}"))?;
-        let pem_str = String::from_utf8(pem_bytes)
-            .map_err(|e| format!("RSA key not valid UTF-8: {e}"))?;
+        let pem_str =
+            String::from_utf8(pem_bytes).map_err(|e| format!("RSA key not valid UTF-8: {e}"))?;
         RsaPrivateKey::from_pkcs8_pem(&pem_str)
             .map_err(|e| format!("failed to parse RSA private key: {e}"))
     }

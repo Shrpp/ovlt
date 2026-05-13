@@ -14,12 +14,7 @@ use crate::{
 };
 
 fn require_admin(state: &AppState, headers: &HeaderMap) -> Result<(), AppError> {
-    admin_auth::require_admin(
-        headers,
-        &state.config,
-state.master_tenant_id,
-    )
-    .map(|_| ())
+    admin_auth::require_admin(headers, &state.config, state.master_tenant_id).map(|_| ())
 }
 
 fn extract_tenant_id(headers: &HeaderMap) -> Result<Uuid, AppError> {
@@ -187,7 +182,12 @@ pub async fn put_smtp(
 
     audit_service::record_best_effort(
         state.db.clone(),
-        audit_service::AuditEvent::new(tenant_id, actor, "smtp.updated", serde_json::json!({"host": smtp_host.as_str()})),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "smtp.updated",
+            serde_json::json!({"host": smtp_host.as_str()}),
+        ),
     );
 
     Ok(Json(serde_json::json!({ "message": "SMTP config saved" })))

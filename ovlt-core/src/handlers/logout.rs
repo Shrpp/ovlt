@@ -75,7 +75,12 @@ pub async fn logout(
 
     audit_service::record_best_effort(
         state.db.clone(),
-        audit_service::AuditEvent::new(tenant_id, Some(auth.user_id), "user.logout", serde_json::json!({})),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            Some(auth.user_id),
+            "user.logout",
+            serde_json::json!({}),
+        ),
     );
 
     // Delete session cookie if present.

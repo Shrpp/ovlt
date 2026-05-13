@@ -25,12 +25,7 @@ fn extract_tenant_id(headers: &HeaderMap) -> Result<Uuid, AppError> {
 }
 
 fn require_admin(state: &AppState, headers: &HeaderMap) -> Result<(), AppError> {
-    admin_auth::require_admin(
-        headers,
-        &state.config,
-state.master_tenant_id,
-    )
-    .map(|_| ())
+    admin_auth::require_admin(headers, &state.config, state.master_tenant_id).map(|_| ())
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
@@ -142,7 +137,12 @@ pub async fn create_role(
 
     audit_service::record_best_effort(
         state.db.clone(),
-        audit_service::AuditEvent::new(tenant_id, actor, "role.created", serde_json::json!({"role_id": role.id, "name": role.name.as_str()})),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "role.created",
+            serde_json::json!({"role_id": role.id, "name": role.name.as_str()}),
+        ),
     );
 
     Ok((
@@ -197,7 +197,12 @@ pub async fn update_role(
 
     audit_service::record_best_effort(
         state.db.clone(),
-        audit_service::AuditEvent::new(tenant_id, actor, "role.updated", serde_json::json!({"role_id": id})),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "role.updated",
+            serde_json::json!({"role_id": id}),
+        ),
     );
 
     Ok(StatusCode::NO_CONTENT)
@@ -234,7 +239,12 @@ pub async fn delete_role(
 
     audit_service::record_best_effort(
         state.db.clone(),
-        audit_service::AuditEvent::new(tenant_id, actor, "role.deleted", serde_json::json!({"role_id": id})),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "role.deleted",
+            serde_json::json!({"role_id": id}),
+        ),
     );
 
     Ok(StatusCode::NO_CONTENT)
@@ -319,7 +329,12 @@ pub async fn assign_user_role(
 
     audit_service::record_best_effort(
         state.db.clone(),
-        audit_service::AuditEvent::new(tenant_id, actor, "user.role.assigned", serde_json::json!({"user_id": user_id, "role_id": role_id})),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "user.role.assigned",
+            serde_json::json!({"user_id": user_id, "role_id": role_id}),
+        ),
     );
 
     Ok(StatusCode::NO_CONTENT)
@@ -357,7 +372,12 @@ pub async fn revoke_user_role(
 
     audit_service::record_best_effort(
         state.db.clone(),
-        audit_service::AuditEvent::new(tenant_id, actor, "user.role.revoked", serde_json::json!({"user_id": user_id, "role_id": role_id})),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "user.role.revoked",
+            serde_json::json!({"user_id": user_id, "role_id": role_id}),
+        ),
     );
 
     Ok(StatusCode::NO_CONTENT)
@@ -442,7 +462,12 @@ pub async fn assign_client_role(
 
     audit_service::record_best_effort(
         state.db.clone(),
-        audit_service::AuditEvent::new(tenant_id, actor, "client.role.assigned", serde_json::json!({"client_id": client_uuid, "role_id": role_id})),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "client.role.assigned",
+            serde_json::json!({"client_id": client_uuid, "role_id": role_id}),
+        ),
     );
 
     Ok(StatusCode::NO_CONTENT)
@@ -480,7 +505,12 @@ pub async fn revoke_client_role(
 
     audit_service::record_best_effort(
         state.db.clone(),
-        audit_service::AuditEvent::new(tenant_id, actor, "client.role.revoked", serde_json::json!({"client_id": client_uuid, "role_id": role_id})),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "client.role.revoked",
+            serde_json::json!({"client_id": client_uuid, "role_id": role_id}),
+        ),
     );
 
     Ok(StatusCode::NO_CONTENT)

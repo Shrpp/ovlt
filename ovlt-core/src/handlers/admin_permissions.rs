@@ -25,12 +25,7 @@ fn extract_tenant_id(headers: &HeaderMap) -> Result<Uuid, AppError> {
 }
 
 fn require_admin(state: &AppState, headers: &HeaderMap) -> Result<(), AppError> {
-    admin_auth::require_admin(
-        headers,
-        &state.config,
-state.master_tenant_id,
-    )
-    .map(|_| ())
+    admin_auth::require_admin(headers, &state.config, state.master_tenant_id).map(|_| ())
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
@@ -142,7 +137,12 @@ pub async fn create_permission(
 
     audit_service::record_best_effort(
         state.db.clone(),
-        audit_service::AuditEvent::new(tenant_id, actor, "permission.created", serde_json::json!({"permission_id": perm.id, "name": perm.name.as_str()})),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "permission.created",
+            serde_json::json!({"permission_id": perm.id, "name": perm.name.as_str()}),
+        ),
     );
 
     Ok((
@@ -197,7 +197,12 @@ pub async fn update_permission(
 
     audit_service::record_best_effort(
         state.db.clone(),
-        audit_service::AuditEvent::new(tenant_id, actor, "permission.updated", serde_json::json!({"permission_id": id})),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "permission.updated",
+            serde_json::json!({"permission_id": id}),
+        ),
     );
 
     Ok(StatusCode::NO_CONTENT)
@@ -234,7 +239,12 @@ pub async fn delete_permission(
 
     audit_service::record_best_effort(
         state.db.clone(),
-        audit_service::AuditEvent::new(tenant_id, actor, "permission.deleted", serde_json::json!({"permission_id": id})),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "permission.deleted",
+            serde_json::json!({"permission_id": id}),
+        ),
     );
 
     Ok(StatusCode::NO_CONTENT)
@@ -319,7 +329,12 @@ pub async fn assign_role_permission(
 
     audit_service::record_best_effort(
         state.db.clone(),
-        audit_service::AuditEvent::new(tenant_id, actor, "role.permission.assigned", serde_json::json!({"role_id": role_id, "permission_id": permission_id})),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "role.permission.assigned",
+            serde_json::json!({"role_id": role_id, "permission_id": permission_id}),
+        ),
     );
 
     Ok(StatusCode::NO_CONTENT)
@@ -357,7 +372,12 @@ pub async fn revoke_role_permission(
 
     audit_service::record_best_effort(
         state.db.clone(),
-        audit_service::AuditEvent::new(tenant_id, actor, "role.permission.revoked", serde_json::json!({"role_id": role_id, "permission_id": permission_id})),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "role.permission.revoked",
+            serde_json::json!({"role_id": role_id, "permission_id": permission_id}),
+        ),
     );
 
     Ok(StatusCode::NO_CONTENT)

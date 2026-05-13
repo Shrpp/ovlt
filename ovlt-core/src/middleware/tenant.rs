@@ -5,7 +5,11 @@ use axum::{
 };
 use uuid::Uuid;
 
-use crate::{error::AppError, services::tenant_service, state::{AppState, CachedTenantKey}};
+use crate::{
+    error::AppError,
+    services::tenant_service,
+    state::{AppState, CachedTenantKey},
+};
 
 #[derive(Clone, Debug)]
 pub struct TenantContext {

@@ -54,12 +54,11 @@ async fn main() {
         });
 
     let jwk = match (&config.rsa_private_key, &config.rsa_private_key_previous) {
-        (Some(cur), Some(prev)) => {
-            JwkService::from_pem_b64_with_previous(cur, prev).unwrap_or_else(|e| {
+        (Some(cur), Some(prev)) => JwkService::from_pem_b64_with_previous(cur, prev)
+            .unwrap_or_else(|e| {
                 eprintln!("RSA key error: {e}");
                 std::process::exit(1);
-            })
-        }
+            }),
         (Some(cur), None) => JwkService::from_pem_b64(cur).unwrap_or_else(|e| {
             eprintln!("RSA key error: {e}");
             std::process::exit(1);

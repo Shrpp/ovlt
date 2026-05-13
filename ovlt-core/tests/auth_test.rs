@@ -122,8 +122,8 @@ async fn test_register_and_login() {
     )
     .expect("generate token");
 
-    let claims =
-        token_service::validate_access_token(&token, &cfg.jwt_secret, None).expect("validate token");
+    let claims = token_service::validate_access_token(&token, &cfg.jwt_secret, None)
+        .expect("validate token");
 
     assert_eq!(claims.sub, user.id.to_string());
     assert_eq!(claims.tid, tenant_id.to_string());
@@ -468,7 +468,10 @@ async fn test_key_rotation_previous_secret_accepted() {
 
     // Current secret alone must reject it
     let rejected = token_service::validate_access_token(&token, new_secret, None);
-    assert!(rejected.is_err(), "old token must fail without previous secret");
+    assert!(
+        rejected.is_err(),
+        "old token must fail without previous secret"
+    );
 
     // With previous secret as fallback it must succeed
     let claims = token_service::validate_access_token(&token, new_secret, Some(old_secret))
@@ -520,12 +523,14 @@ async fn test_jti_revoked_after_blocklist() {
     )
     .expect("generate token");
 
-    let claims = token_service::validate_access_token(&token, &cfg.jwt_secret, None)
-        .expect("validate");
+    let claims =
+        token_service::validate_access_token(&token, &cfg.jwt_secret, None).expect("validate");
 
     // Not revoked initially
     assert!(
-        !token_service::is_jti_revoked(&db, &claims.jti).await.unwrap(),
+        !token_service::is_jti_revoked(&db, &claims.jti)
+            .await
+            .unwrap(),
         "fresh token must not be revoked"
     );
 
@@ -538,7 +543,9 @@ async fn test_jti_revoked_after_blocklist() {
 
     // Now marked as revoked
     assert!(
-        token_service::is_jti_revoked(&db, &claims.jti).await.unwrap(),
+        token_service::is_jti_revoked(&db, &claims.jti)
+            .await
+            .unwrap(),
         "token must be revoked after blocklist insertion"
     );
 }
@@ -554,7 +561,15 @@ async fn test_jti_revoked_after_blocklist() {
 #[tokio::test]
 async fn test_backup_codes_generate_and_consume() {
     let (db, cfg, tenant_id, tenant_key) = setup().await;
-    let user = create_test_user(&db, &cfg, tenant_id, &tenant_key, "bkcodes@test.dev", "Pass1234!").await;
+    let user = create_test_user(
+        &db,
+        &cfg,
+        tenant_id,
+        &tenant_key,
+        "bkcodes@test.dev",
+        "Pass1234!",
+    )
+    .await;
 
     let txn = db::begin_tenant_txn(&db, tenant_id).await.unwrap();
     let codes = mfa_service::generate_backup_codes(&txn, tenant_id, user.id)
@@ -562,7 +577,11 @@ async fn test_backup_codes_generate_and_consume() {
         .expect("generate backup codes");
     txn.commit().await.unwrap();
 
-    assert_eq!(codes.len(), mfa_service::BACKUP_CODE_COUNT, "must generate exactly 10 codes");
+    assert_eq!(
+        codes.len(),
+        mfa_service::BACKUP_CODE_COUNT,
+        "must generate exactly 10 codes"
+    );
     assert!(
         codes.iter().all(|c| c.len() == 9 && c.contains('-')),
         "codes must be in XXXX-XXXX format"
@@ -596,7 +615,15 @@ async fn test_backup_codes_generate_and_consume() {
 #[tokio::test]
 async fn test_backup_codes_regenerate_invalidates_previous() {
     let (db, cfg, tenant_id, tenant_key) = setup().await;
-    let user = create_test_user(&db, &cfg, tenant_id, &tenant_key, "bkregen@test.dev", "Pass1234!").await;
+    let user = create_test_user(
+        &db,
+        &cfg,
+        tenant_id,
+        &tenant_key,
+        "bkregen@test.dev",
+        "Pass1234!",
+    )
+    .await;
 
     let txn = db::begin_tenant_txn(&db, tenant_id).await.unwrap();
     let first_set = mfa_service::generate_backup_codes(&txn, tenant_id, user.id)
@@ -625,7 +652,15 @@ async fn test_backup_codes_regenerate_invalidates_previous() {
 #[tokio::test]
 async fn test_rbac_roles_appear_in_token_claims() {
     let (db, cfg, tenant_id, tenant_key) = setup().await;
-    let user = create_test_user(&db, &cfg, tenant_id, &tenant_key, "rbac@test.dev", "Pass1234!").await;
+    let user = create_test_user(
+        &db,
+        &cfg,
+        tenant_id,
+        &tenant_key,
+        "rbac@test.dev",
+        "Pass1234!",
+    )
+    .await;
 
     // Create role and assign to user
     let role_name = format!("editor-{}", uuid::Uuid::new_v4());
@@ -652,7 +687,10 @@ async fn test_rbac_roles_appear_in_token_claims() {
         .expect("list role names");
     txn.commit().await.unwrap();
 
-    assert!(role_names.contains(&role_name), "role must be returned by list_names_for_user");
+    assert!(
+        role_names.contains(&role_name),
+        "role must be returned by list_names_for_user"
+    );
 
     // Generate token with those roles
     let token = token_service::generate_access_token(
@@ -667,8 +705,8 @@ async fn test_rbac_roles_appear_in_token_claims() {
     )
     .expect("generate token");
 
-    let claims = token_service::validate_access_token(&token, &cfg.jwt_secret, None)
-        .expect("validate");
+    let claims =
+        token_service::validate_access_token(&token, &cfg.jwt_secret, None).expect("validate");
 
     assert!(
         claims.realm_access.roles.contains(&role_name),
@@ -679,7 +717,15 @@ async fn test_rbac_roles_appear_in_token_claims() {
 #[tokio::test]
 async fn test_rbac_revoked_role_absent_from_new_token() {
     let (db, cfg, tenant_id, tenant_key) = setup().await;
-    let user = create_test_user(&db, &cfg, tenant_id, &tenant_key, "rbac2@test.dev", "Pass1234!").await;
+    let user = create_test_user(
+        &db,
+        &cfg,
+        tenant_id,
+        &tenant_key,
+        "rbac2@test.dev",
+        "Pass1234!",
+    )
+    .await;
 
     let role_name = format!("moderator-{}", uuid::Uuid::new_v4());
     let txn = db::begin_tenant_txn(&db, tenant_id).await.unwrap();
@@ -693,7 +739,9 @@ async fn test_rbac_revoked_role_absent_from_new_token() {
     )
     .await
     .unwrap();
-    role_service::assign(&txn, user.id, role.id, tenant_id).await.unwrap();
+    role_service::assign(&txn, user.id, role.id, tenant_id)
+        .await
+        .unwrap();
     txn.commit().await.unwrap();
 
     // Revoke the role
@@ -738,7 +786,12 @@ async fn test_rbac_revoked_role_absent_from_new_token() {
 async fn test_password_history_reuse_rejected() {
     let (db, cfg, tenant_id, tenant_key) = setup().await;
     let user = create_test_user(
-        &db, &cfg, tenant_id, &tenant_key, "histcheck@test.dev", "OldPass1!",
+        &db,
+        &cfg,
+        tenant_id,
+        &tenant_key,
+        "histcheck@test.dev",
+        "OldPass1!",
     )
     .await;
 
@@ -759,14 +812,22 @@ async fn test_password_history_reuse_rejected() {
     let txn = db::begin_tenant_txn(&db, tenant_id).await.unwrap();
     let result = password_history_service::check(&txn, user.id, "OldPass1!", 3).await;
     txn.commit().await.unwrap();
-    assert!(result.is_err(), "reusing a recent password must be rejected");
+    assert!(
+        result.is_err(),
+        "reusing a recent password must be rejected"
+    );
 }
 
 #[tokio::test]
 async fn test_password_history_new_password_accepted() {
     let (db, cfg, tenant_id, tenant_key) = setup().await;
     let user = create_test_user(
-        &db, &cfg, tenant_id, &tenant_key, "histok@test.dev", "OldPass2!",
+        &db,
+        &cfg,
+        tenant_id,
+        &tenant_key,
+        "histok@test.dev",
+        "OldPass2!",
     )
     .await;
 
@@ -789,7 +850,12 @@ async fn test_password_history_new_password_accepted() {
 async fn test_password_history_skipped_when_size_zero() {
     let (db, cfg, tenant_id, tenant_key) = setup().await;
     let user = create_test_user(
-        &db, &cfg, tenant_id, &tenant_key, "histzero@test.dev", "AnyPass1!",
+        &db,
+        &cfg,
+        tenant_id,
+        &tenant_key,
+        "histzero@test.dev",
+        "AnyPass1!",
     )
     .await;
 
@@ -804,14 +870,22 @@ async fn test_password_history_skipped_when_size_zero() {
     let txn = db::begin_tenant_txn(&db, tenant_id).await.unwrap();
     let result = password_history_service::check(&txn, user.id, "AnyPass1!", 0).await;
     txn.commit().await.unwrap();
-    assert!(result.is_ok(), "history_size=0 must skip the check entirely");
+    assert!(
+        result.is_ok(),
+        "history_size=0 must skip the check entirely"
+    );
 }
 
 #[tokio::test]
 async fn test_password_history_window_boundary() {
     let (db, cfg, tenant_id, tenant_key) = setup().await;
     let user = create_test_user(
-        &db, &cfg, tenant_id, &tenant_key, "histwindow@test.dev", "Base1234!",
+        &db,
+        &cfg,
+        tenant_id,
+        &tenant_key,
+        "histwindow@test.dev",
+        "Base1234!",
     )
     .await;
 
@@ -819,7 +893,9 @@ async fn test_password_history_window_boundary() {
     for pw in &["HistA111!", "HistB222!", "HistC333!"] {
         let h = hefesto::hash_password(pw).unwrap();
         let txn = db::begin_tenant_txn(&db, tenant_id).await.unwrap();
-        password_history_service::record(&txn, tenant_id, user.id, &h).await.unwrap();
+        password_history_service::record(&txn, tenant_id, user.id, &h)
+            .await
+            .unwrap();
         txn.commit().await.unwrap();
     }
 

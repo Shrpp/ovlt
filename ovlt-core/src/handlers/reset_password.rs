@@ -90,7 +90,12 @@ pub async fn reset_password(
 
     audit_service::record_best_effort(
         state.db.clone(),
-        audit_service::AuditEvent::new(ctx.tenant_id, Some(record.user_id), "user.password.reset", serde_json::json!({})),
+        audit_service::AuditEvent::new(
+            ctx.tenant_id,
+            Some(record.user_id),
+            "user.password.reset",
+            serde_json::json!({}),
+        ),
     );
 
     Ok(Json(

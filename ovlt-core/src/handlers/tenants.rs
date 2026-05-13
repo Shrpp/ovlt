@@ -68,11 +68,7 @@ pub async fn create_tenant(
     Json(payload): Json<CreateTenantRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     let actor = admin_auth::extract_actor(&headers, &state.config);
-    admin_auth::require_admin(
-        &headers,
-        &state.config,
-        state.master_tenant_id,
-    )?;
+    admin_auth::require_admin(&headers, &state.config, state.master_tenant_id)?;
 
     payload.validate().map_err(validation_to_app_error)?;
     validate_slug(&payload.slug)?;
@@ -112,7 +108,12 @@ pub async fn create_tenant(
 
     audit_service::record_best_effort(
         state.db.clone(),
-        audit_service::AuditEvent::new(tenant.id, actor, "tenant.created", serde_json::json!({"slug": tenant.slug.as_str(), "name": tenant.name.as_str()})),
+        audit_service::AuditEvent::new(
+            tenant.id,
+            actor,
+            "tenant.created",
+            serde_json::json!({"slug": tenant.slug.as_str(), "name": tenant.name.as_str()}),
+        ),
     );
 
     Ok((
@@ -171,11 +172,7 @@ pub async fn list_tenants(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<impl IntoResponse, AppError> {
-    let scope = admin_auth::require_admin(
-        &headers,
-        &state.config,
-        state.master_tenant_id,
-    )?;
+    let scope = admin_auth::require_admin(&headers, &state.config, state.master_tenant_id)?;
 
     let tenants = if let Some(tenant_id) = scope {
         // SuperAdmin: return only their own tenant

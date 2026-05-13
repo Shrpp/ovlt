@@ -3,10 +3,7 @@ use sea_orm::EntityTrait;
 use serde_json::json;
 
 use crate::{
-    entity::users,
-    error::AppError,
-    extractors::TenantDb,
-    middleware::auth::AuthUser,
+    entity::users, error::AppError, extractors::TenantDb, middleware::auth::AuthUser,
     state::AppState,
 };
 
@@ -30,7 +27,9 @@ pub async fn me(
     Extension(auth): Extension<AuthUser>,
     db: TenantDb,
 ) -> Result<impl IntoResponse, AppError> {
-    let TenantDb { txn, tenant_key, .. } = db;
+    let TenantDb {
+        txn, tenant_key, ..
+    } = db;
 
     let user = users::Entity::find_by_id(auth.user_id)
         .one(&txn)
@@ -39,7 +38,11 @@ pub async fn me(
 
     txn.commit().await?;
 
-    let email = hefesto::decrypt(&user.email, &tenant_key, &state.config.master_encryption_key)?;
+    let email = hefesto::decrypt(
+        &user.email,
+        &tenant_key,
+        &state.config.master_encryption_key,
+    )?;
 
     Ok(Json(json!({
         "id": user.id,

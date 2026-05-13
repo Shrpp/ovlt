@@ -54,11 +54,7 @@ pub async fn list_passkeys(
     headers: HeaderMap,
     Path(user_id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
-    admin_auth::require_admin(
-        &headers,
-        &state.config,
-        state.master_tenant_id,
-    )?;
+    admin_auth::require_admin(&headers, &state.config, state.master_tenant_id)?;
     let tenant_id = extract_tenant_id(&headers)?;
     let _ = tenant_service::find_active(&state.db, tenant_id).await?;
 
@@ -104,11 +100,7 @@ pub async fn delete_passkey(
     Path((user_id, credential_id)): Path<(Uuid, String)>,
 ) -> Result<impl IntoResponse, AppError> {
     let actor = admin_auth::extract_actor(&headers, &state.config);
-    admin_auth::require_admin(
-        &headers,
-        &state.config,
-        state.master_tenant_id,
-    )?;
+    admin_auth::require_admin(&headers, &state.config, state.master_tenant_id)?;
     let tenant_id = extract_tenant_id(&headers)?;
     let _ = tenant_service::find_active(&state.db, tenant_id).await?;
 
@@ -118,7 +110,12 @@ pub async fn delete_passkey(
 
     audit_service::record_best_effort(
         state.db.clone(),
-        audit_service::AuditEvent::new(tenant_id, actor, "passkey.deleted", serde_json::json!({"user_id": user_id, "credential_id": credential_id.as_str()})),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "passkey.deleted",
+            serde_json::json!({"user_id": user_id, "credential_id": credential_id.as_str()}),
+        ),
     );
 
     Ok(axum::http::StatusCode::NO_CONTENT)

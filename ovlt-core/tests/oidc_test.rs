@@ -56,22 +56,20 @@ async fn spawn_server() -> TestServer {
         .unwrap();
     });
 
-    TestServer { base_url, config: cfg, db }
+    TestServer {
+        base_url,
+        config: cfg,
+        db,
+    }
 }
 
 // ── Fixture helpers ───────────────────────────────────────────────────────────
 
-async fn create_tenant(
-    db: &sea_orm::DatabaseConnection,
-    cfg: &Config,
-) -> (Uuid, String) {
+async fn create_tenant(db: &sea_orm::DatabaseConnection, cfg: &Config) -> (Uuid, String) {
     let tenant_key = "test-tenant-key-exactly-32-chars!";
-    let encrypted_key = hefesto::encrypt(
-        tenant_key,
-        &cfg.tenant_wrap_key,
-        &cfg.master_encryption_key,
-    )
-    .expect("encrypt tenant key");
+    let encrypted_key =
+        hefesto::encrypt(tenant_key, &cfg.tenant_wrap_key, &cfg.master_encryption_key)
+            .expect("encrypt tenant key");
 
     let tenant_id = Uuid::new_v4();
     tenants::ActiveModel {
@@ -164,7 +162,14 @@ fn bearer_token(cfg: &Config, user_id: Uuid, tenant_id: Uuid, email: &str) -> St
 async fn test_oidc_auth_code_flow() {
     let srv = spawn_server().await;
     let (tenant_id, tenant_key) = create_tenant(&srv.db, &srv.config).await;
-    let user = create_user(&srv.db, &srv.config, tenant_id, &tenant_key, "oidc@test.dev").await;
+    let user = create_user(
+        &srv.db,
+        &srv.config,
+        tenant_id,
+        &tenant_key,
+        "oidc@test.dev",
+    )
+    .await;
     let redirect_uri = "https://app.example.com/callback";
     let client = create_public_client(&srv.db, tenant_id, redirect_uri).await;
 
@@ -225,7 +230,10 @@ async fn test_oidc_auth_code_flow() {
     let issued_token = body["access_token"].as_str().unwrap().to_string();
     assert!(!issued_token.is_empty(), "access_token must be present");
     assert!(body["id_token"].is_string(), "id_token must be present");
-    assert!(body["refresh_token"].is_string(), "refresh_token must be present");
+    assert!(
+        body["refresh_token"].is_string(),
+        "refresh_token must be present"
+    );
 
     // 3. Introspect → active
     let Some(admin_key) = &srv.config.admin_key else {
@@ -242,7 +250,10 @@ async fn test_oidc_auth_code_flow() {
 
     assert_eq!(introspect_resp.status(), 200);
     let introspect_body: serde_json::Value = introspect_resp.json().await.unwrap();
-    assert_eq!(introspect_body["active"], true, "freshly issued token must be active");
+    assert_eq!(
+        introspect_body["active"], true,
+        "freshly issued token must be active"
+    );
     assert_eq!(introspect_body["sub"], user.id.to_string());
 }
 
@@ -250,7 +261,14 @@ async fn test_oidc_auth_code_flow() {
 async fn test_oidc_pkce_wrong_verifier_rejected() {
     let srv = spawn_server().await;
     let (tenant_id, tenant_key) = create_tenant(&srv.db, &srv.config).await;
-    let user = create_user(&srv.db, &srv.config, tenant_id, &tenant_key, "pkce@test.dev").await;
+    let user = create_user(
+        &srv.db,
+        &srv.config,
+        tenant_id,
+        &tenant_key,
+        "pkce@test.dev",
+    )
+    .await;
     let redirect_uri = "https://app.example.com/callback";
     let client = create_public_client(&srv.db, tenant_id, redirect_uri).await;
 
@@ -278,7 +296,13 @@ async fn test_oidc_pkce_wrong_verifier_rejected() {
 
     assert_eq!(resp.status(), 302);
     let location = resp.headers().get("location").unwrap().to_str().unwrap();
-    let code = location.split("code=").nth(1).unwrap().split('&').next().unwrap();
+    let code = location
+        .split("code=")
+        .nth(1)
+        .unwrap()
+        .split('&')
+        .next()
+        .unwrap();
 
     // Use wrong verifier — token endpoint must reject
     let token_resp = http
@@ -301,7 +325,14 @@ async fn test_oidc_pkce_wrong_verifier_rejected() {
 async fn test_oidc_code_reuse_rejected() {
     let srv = spawn_server().await;
     let (tenant_id, tenant_key) = create_tenant(&srv.db, &srv.config).await;
-    let user = create_user(&srv.db, &srv.config, tenant_id, &tenant_key, "reuse@test.dev").await;
+    let user = create_user(
+        &srv.db,
+        &srv.config,
+        tenant_id,
+        &tenant_key,
+        "reuse@test.dev",
+    )
+    .await;
     let redirect_uri = "https://app.example.com/callback";
     let client = create_public_client(&srv.db, tenant_id, redirect_uri).await;
 

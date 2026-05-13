@@ -52,11 +52,7 @@ pub async fn list_sessions(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<impl IntoResponse, AppError> {
-    admin_auth::require_admin(
-        &headers,
-        &state.config,
-        state.master_tenant_id,
-    )?;
+    admin_auth::require_admin(&headers, &state.config, state.master_tenant_id)?;
     let tenant_id = extract_tenant_id(&headers)?;
     let sessions = session_service::list_by_tenant(&state.db, tenant_id).await?;
 
@@ -102,11 +98,7 @@ pub async fn delete_session(
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
     let actor = admin_auth::extract_actor(&headers, &state.config);
-    admin_auth::require_admin(
-        &headers,
-        &state.config,
-        state.master_tenant_id,
-    )?;
+    admin_auth::require_admin(&headers, &state.config, state.master_tenant_id)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
     // Verify the session belongs to this tenant before deleting.
@@ -115,7 +107,12 @@ pub async fn delete_session(
             session_service::delete(&state.db, &id).await?;
             audit_service::record_best_effort(
                 state.db.clone(),
-                audit_service::AuditEvent::new(tenant_id, actor, "session.deleted", serde_json::json!({"session_id": id.as_str()})),
+                audit_service::AuditEvent::new(
+                    tenant_id,
+                    actor,
+                    "session.deleted",
+                    serde_json::json!({"session_id": id.as_str()}),
+                ),
             );
         }
     }

@@ -1,4 +1,9 @@
-use axum::{extract::{Query, State}, http::HeaderMap, response::IntoResponse, Json};
+use axum::{
+    extract::{Query, State},
+    http::HeaderMap,
+    response::IntoResponse,
+    Json,
+};
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -48,11 +53,7 @@ pub async fn list_audit_log(
     headers: HeaderMap,
     Query(params): Query<AuditLogQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    admin_auth::require_admin(
-        &headers,
-        &state.config,
-        state.master_tenant_id,
-    )?;
+    admin_auth::require_admin(&headers, &state.config, state.master_tenant_id)?;
     let tenant_id = extract_tenant_id(&headers)?;
     let limit = params.limit.unwrap_or(100).min(10_000);
 
