@@ -85,6 +85,7 @@ The `TenantDb` Axum extractor (`src/extractors.rs`) adds a second layer of enfor
 - SBOM generated on every `main` push (Syft, SPDX format) — attached to GitHub Releases
 - Container image scanned for CVEs (Grype) on every `main` push — critical CVEs fail the build
 - SARIF results uploaded to the GitHub Security tab
+- Runtime image is `gcr.io/distroless/cc-debian12:nonroot` — no shell, no package manager, no setuid binaries; only the binary + required shared libs are present
 
 ## Key rotation
 
@@ -139,7 +140,7 @@ When a user enables TOTP, they can generate a set of **10 single-use recovery co
 | Lost encryption keys | Auto-generated + printed on first run; must be saved |
 | Admin API enumeration | Key-gated; returns `404` if unconfigured |
 | Clickjacking | `X-Frame-Options: DENY` |
-| Supply chain attack | SBOM + Grype scan on every release |
+| Supply chain attack | SBOM + Grype scan on every release; distroless runtime minimises installed attack surface |
 
 ## Production hardening checklist
 
@@ -151,5 +152,5 @@ When a user enables TOTP, they can generate a set of **10 single-use recovery co
 <Check>`CORS_ALLOWED_ORIGINS` set explicitly (no wildcard)</Check>
 <Check>`OVLT_ISSUER` set to your HTTPS public URL</Check>
 <Check>TLS termination at reverse proxy (nginx, Caddy, Traefik, etc.)</Check>
-<Check>Container runs as non-root (Dockerfile uses `USER 65534`)</Check>
+<Check>Container runs as non-root (distroless image enforces UID 65532; no shell or package manager in runtime image)</Check>
 <Check>PostgreSQL access restricted to the `ovlt_rls` role only</Check>
