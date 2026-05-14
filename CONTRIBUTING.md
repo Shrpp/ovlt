@@ -2,7 +2,7 @@
 
 OVLT is a small project with big ambitions — a developer-first auth service that just works, without the Keycloak complexity or the Auth0 price tag. Every contribution, however small, moves that forward.
 
-Licensed under [Elastic License 2.0](LICENSE) — use it, modify it, contribute freely. You can't resell it or offer it as a managed service.
+Licensed under the [MIT License](LICENSE).
 
 ---
 
