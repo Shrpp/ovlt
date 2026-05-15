@@ -13,8 +13,8 @@ use crate::{
     handlers::admin_auth,
     middleware::{auth::AuthUser, tenant::TenantContext},
     services::{
-        mfa_service, permission_service, role_service, session_service, tenant_settings_service,
-        token_service, user_service,
+        audit_service, mfa_service, permission_service, role_service, session_service,
+        tenant_settings_service, token_service, user_service,
     },
     state::AppState,
 };
@@ -127,6 +127,16 @@ pub async fn mfa_confirm(
     mfa_service::activate(&txn, ctx.tenant_id, auth.user_id).await?;
     txn.commit().await?;
 
+    audit_service::record_best_effort(
+        state.db.clone(),
+        audit_service::AuditEvent::new(
+            ctx.tenant_id,
+            Some(auth.user_id),
+            "mfa.enabled",
+            serde_json::json!({}),
+        ),
+    );
+
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -172,9 +182,87 @@ pub async fn mfa_disable(
     }
 
     mfa_service::disable(&txn, ctx.tenant_id, auth.user_id).await?;
+    mfa_service::delete_backup_codes(&txn, ctx.tenant_id, auth.user_id).await?;
     txn.commit().await?;
 
+    audit_service::record_best_effort(
+        state.db.clone(),
+        audit_service::AuditEvent::new(
+            ctx.tenant_id,
+            Some(auth.user_id),
+            "mfa.disabled",
+            serde_json::json!({}),
+        ),
+    );
+
     Ok(StatusCode::NO_CONTENT)
+}
+
+// ── Backup codes (protected) ─────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
+pub struct BackupCodesRequest {
+    pub code: String,
+}
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct BackupCodesResponse {
+    pub codes: Vec<String>,
+}
+
+#[utoipa::path(
+    post,
+    path = "/auth/mfa/backup-codes",
+    tag = "auth",
+    request_body = BackupCodesRequest,
+    responses(
+        (status = 200, description = "Backup codes generated", body = BackupCodesResponse),
+        (status = 401, description = "Invalid TOTP code or MFA not enabled"),
+    ),
+    security(
+        ("bearer_auth" = [])
+    ),
+    params(
+        ("X-Tenant-ID" = String, Header, description = "Tenant UUID"),
+    )
+)]
+pub async fn mfa_backup_codes_generate(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Extension(ctx): Extension<TenantContext>,
+    Json(payload): Json<BackupCodesRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    let txn = db::begin_tenant_txn(&state.db, ctx.tenant_id).await?;
+
+    let record = mfa_service::find_enabled(&txn, ctx.tenant_id, auth.user_id)
+        .await?
+        .ok_or(AppError::NotFound)?;
+
+    let secret = hefesto::decrypt(
+        &record.secret_enc,
+        &ctx.tenant_key,
+        &state.config.master_encryption_key,
+    )?;
+
+    if !mfa_service::verify_code(&secret, &payload.code) {
+        txn.commit().await?;
+        return Err(AppError::Unauthorized);
+    }
+
+    let codes = mfa_service::generate_backup_codes(&txn, ctx.tenant_id, auth.user_id).await?;
+    txn.commit().await?;
+
+    audit_service::record_best_effort(
+        state.db.clone(),
+        audit_service::AuditEvent::new(
+            ctx.tenant_id,
+            Some(auth.user_id),
+            "mfa.backup_codes.generated",
+            serde_json::json!({}),
+        ),
+    );
+
+    Ok(Json(BackupCodesResponse { codes }))
 }
 
 // ── Challenge (public, requires mfa_token) ───────────────────────────────────
@@ -182,7 +270,8 @@ pub async fn mfa_disable(
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct ChallengeRequest {
     pub mfa_token: String,
-    pub code: String,
+    pub code: Option<String>,
+    pub backup_code: Option<String>,
 }
 
 #[utoipa::path(
@@ -203,7 +292,11 @@ pub async fn mfa_challenge(
     Extension(ctx): Extension<TenantContext>,
     Json(payload): Json<ChallengeRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let claims = token_service::verify_mfa_token(&payload.mfa_token, &state.config.jwt_secret)?;
+    let claims = token_service::verify_mfa_token(
+        &payload.mfa_token,
+        &state.config.jwt_secret,
+        state.config.jwt_secret_previous.as_deref(),
+    )?;
 
     let user_id = Uuid::parse_str(&claims.sub).map_err(|_| AppError::Unauthorized)?;
     let token_tenant_id = Uuid::parse_str(&claims.tid).map_err(|_| AppError::Unauthorized)?;
@@ -218,13 +311,20 @@ pub async fn mfa_challenge(
         .await?
         .ok_or(AppError::Unauthorized)?;
 
-    let secret = hefesto::decrypt(
-        &record.secret_enc,
-        &ctx.tenant_key,
-        &state.config.master_encryption_key,
-    )?;
+    let verified = if let Some(ref totp_code) = payload.code {
+        let secret = hefesto::decrypt(
+            &record.secret_enc,
+            &ctx.tenant_key,
+            &state.config.master_encryption_key,
+        )?;
+        mfa_service::verify_code(&secret, totp_code)
+    } else if let Some(ref bcode) = payload.backup_code {
+        mfa_service::consume_backup_code(&txn, ctx.tenant_id, user_id, bcode).await?
+    } else {
+        false
+    };
 
-    if !mfa_service::verify_code(&secret, &payload.code) {
+    if !verified {
         txn.commit().await?;
         return Err(AppError::Unauthorized);
     }
@@ -345,17 +445,24 @@ pub async fn admin_disable_mfa(
     headers: HeaderMap,
     Path(user_id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
-    admin_auth::require_admin(
-        &headers,
-        &state.config.admin_key,
-        &state.config.jwt_secret,
-        state.master_tenant_id,
-    )?;
+    let actor = admin_auth::extract_actor(&headers, &state.config);
+    admin_auth::require_admin(&headers, &state.config, state.master_tenant_id)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
     let txn = db::begin_tenant_txn(&state.db, tenant_id).await?;
     mfa_service::disable(&txn, tenant_id, user_id).await?;
+    mfa_service::delete_backup_codes(&txn, tenant_id, user_id).await?;
     txn.commit().await?;
+
+    audit_service::record_best_effort(
+        state.db.clone(),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "mfa.admin.disabled",
+            serde_json::json!({"user_id": user_id}),
+        ),
+    );
 
     Ok(StatusCode::NO_CONTENT)
 }

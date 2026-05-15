@@ -48,7 +48,11 @@ async fn do_revoke(
         .and_then(|v| v.strip_prefix("Bearer "))
         .ok_or(AppError::Unauthorized)?;
 
-    let caller_claims = token_service::validate_access_token(bearer, &state.config.jwt_secret)?;
+    let caller_claims = token_service::validate_access_token(
+        bearer,
+        &state.config.jwt_secret,
+        state.config.jwt_secret_previous.as_deref(),
+    )?;
 
     let hint = req.token_type_hint.as_deref().unwrap_or("");
 
@@ -72,7 +76,11 @@ async fn try_revoke_access(
     token: &str,
     caller_sub: &str,
 ) -> Result<(), AppError> {
-    let claims = token_service::validate_access_token(token, &state.config.jwt_secret)?;
+    let claims = token_service::validate_access_token(
+        token,
+        &state.config.jwt_secret,
+        state.config.jwt_secret_previous.as_deref(),
+    )?;
     // Only allow revoking own tokens.
     if claims.sub != caller_sub {
         return Err(AppError::Unauthorized);

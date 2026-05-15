@@ -12,7 +12,7 @@ use crate::{
     db,
     error::{validation_to_app_error, AppError},
     handlers::admin_auth,
-    services::{identity_provider_service, tenant_service},
+    services::{audit_service, identity_provider_service, tenant_service},
     state::AppState,
 };
 
@@ -25,13 +25,7 @@ fn extract_tenant_id(headers: &HeaderMap) -> Result<Uuid, AppError> {
 }
 
 fn require_admin(state: &AppState, headers: &HeaderMap) -> Result<(), AppError> {
-    admin_auth::require_admin(
-        headers,
-        &state.config.admin_key,
-        &state.config.jwt_secret,
-        state.master_tenant_id,
-    )
-    .map(|_| ())
+    admin_auth::require_admin(headers, &state.config, state.master_tenant_id).map(|_| ())
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
@@ -133,6 +127,7 @@ pub async fn create_idp(
     headers: HeaderMap,
     Json(payload): Json<CreateIdpRequest>,
 ) -> Result<impl IntoResponse, AppError> {
+    let actor = admin_auth::extract_actor(&headers, &state.config);
     require_admin(&state, &headers)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
@@ -168,6 +163,16 @@ pub async fn create_idp(
     )
     .await?;
     txn.commit().await?;
+
+    audit_service::record_best_effort(
+        state.db.clone(),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "idp.created",
+            serde_json::json!({"idp_id": idp.id, "provider": idp.provider.as_str()}),
+        ),
+    );
 
     Ok((
         StatusCode::CREATED,
@@ -207,6 +212,7 @@ pub async fn update_idp(
     Path(id): Path<Uuid>,
     Json(payload): Json<UpdateIdpRequest>,
 ) -> Result<impl IntoResponse, AppError> {
+    let actor = admin_auth::extract_actor(&headers, &state.config);
     require_admin(&state, &headers)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
@@ -241,6 +247,16 @@ pub async fn update_idp(
     .await?;
     txn.commit().await?;
 
+    audit_service::record_best_effort(
+        state.db.clone(),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "idp.updated",
+            serde_json::json!({"idp_id": id}),
+        ),
+    );
+
     Ok(Json(IdpResponse {
         id: idp.id.to_string(),
         provider: idp.provider,
@@ -273,12 +289,23 @@ pub async fn delete_idp(
     headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
+    let actor = admin_auth::extract_actor(&headers, &state.config);
     require_admin(&state, &headers)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
     let txn = db::begin_tenant_txn(&state.db, tenant_id).await?;
     identity_provider_service::delete(&txn, id).await?;
     txn.commit().await?;
+
+    audit_service::record_best_effort(
+        state.db.clone(),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "idp.deleted",
+            serde_json::json!({"idp_id": id}),
+        ),
+    );
 
     Ok(StatusCode::NO_CONTENT)
 }

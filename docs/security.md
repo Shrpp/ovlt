@@ -78,6 +78,8 @@ The current implementation does see passwords in plaintext in server memory duri
 
 ---
 
+**Password history** — when `history_size > 0` in a tenant's password policy, the last N hashes are checked on every password change (reset flow and admin-forced change). Reusing a recent password returns a 400 error. Each accepted hash is recorded in `password_history` (RLS-isolated per tenant). Setting `history_size = 0` disables the check.
+
 ## Account lockout
 
 After **5 consecutive failed login attempts**, the account is locked for **15 minutes**.
@@ -180,6 +182,8 @@ If the master or wrap key is lost, all encrypted data is permanently inaccessibl
 See [Architecture](architecture.md) for the full encryption model.
 
 ---
+
+The `TenantDb` Axum extractor (`src/extractors.rs`) adds a second layer of enforcement at compile time. User-facing handlers that declare `TenantDb` in their signature are guaranteed to receive a `DatabaseTransaction` with `SET LOCAL ROLE ovlt_rls` and `app.tenant_id` already set — it is structurally impossible to skip this step and still reach the handler body.
 
 ## CORS
 

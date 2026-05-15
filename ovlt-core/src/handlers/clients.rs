@@ -12,7 +12,7 @@ use crate::{
     db,
     error::{validation_to_app_error, AppError},
     handlers::admin_auth,
-    services::client_service,
+    services::{audit_service, client_service},
     state::AppState,
 };
 
@@ -74,12 +74,8 @@ pub async fn create_client(
     headers: HeaderMap,
     Json(payload): Json<CreateClientRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    admin_auth::require_admin(
-        &headers,
-        &state.config.admin_key,
-        &state.config.jwt_secret,
-        state.master_tenant_id,
-    )?;
+    let actor = admin_auth::extract_actor(&headers, &state.config);
+    admin_auth::require_admin(&headers, &state.config, state.master_tenant_id)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
     payload.validate().map_err(validation_to_app_error)?;
@@ -119,6 +115,16 @@ pub async fn create_client(
 
     txn.commit().await?;
 
+    audit_service::record_best_effort(
+        state.db.clone(),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "client.created",
+            serde_json::json!({"client_id": model.client_id.as_str(), "name": model.name.as_str()}),
+        ),
+    );
+
     Ok((
         StatusCode::CREATED,
         Json(ClientResponse {
@@ -157,12 +163,7 @@ pub async fn list_clients(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<impl IntoResponse, AppError> {
-    admin_auth::require_admin(
-        &headers,
-        &state.config.admin_key,
-        &state.config.jwt_secret,
-        state.master_tenant_id,
-    )?;
+    admin_auth::require_admin(&headers, &state.config, state.master_tenant_id)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
     let txn = db::begin_tenant_txn(&state.db, tenant_id).await?;
@@ -226,12 +227,8 @@ pub async fn update_client(
     Path(id): Path<Uuid>,
     Json(payload): Json<UpdateClientRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    admin_auth::require_admin(
-        &headers,
-        &state.config.admin_key,
-        &state.config.jwt_secret,
-        state.master_tenant_id,
-    )?;
+    let actor = admin_auth::extract_actor(&headers, &state.config);
+    admin_auth::require_admin(&headers, &state.config, state.master_tenant_id)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
     payload.validate().map_err(validation_to_app_error)?;
@@ -265,6 +262,16 @@ pub async fn update_client(
     )
     .await?;
     txn.commit().await?;
+
+    audit_service::record_best_effort(
+        state.db.clone(),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "client.updated",
+            serde_json::json!({"client_uuid": id}),
+        ),
+    );
 
     Ok(Json(ClientResponse {
         id: model.id.to_string(),
@@ -303,17 +310,23 @@ pub async fn deactivate_client(
     headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
-    admin_auth::require_admin(
-        &headers,
-        &state.config.admin_key,
-        &state.config.jwt_secret,
-        state.master_tenant_id,
-    )?;
+    let actor = admin_auth::extract_actor(&headers, &state.config);
+    admin_auth::require_admin(&headers, &state.config, state.master_tenant_id)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
     let txn = db::begin_tenant_txn(&state.db, tenant_id).await?;
     client_service::deactivate(&txn, id).await?;
     txn.commit().await?;
+
+    audit_service::record_best_effort(
+        state.db.clone(),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "client.deactivated",
+            serde_json::json!({"client_uuid": id}),
+        ),
+    );
 
     Ok(StatusCode::NO_CONTENT)
 }

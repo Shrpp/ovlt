@@ -34,21 +34,29 @@ RUN touch ovlt-core/src/main.rs ovlt-core/src/lib.rs \
           ovlt-core/migration/src/main.rs ovlt-core/migration/src/lib.rs \
  && cargo build --release --bin ovlt-core
 
-# ─── Stage 2: Runtime ────────────────────────────────────────────────────────
-FROM debian:bookworm-slim AS runtime
-
+# ─── Stage 2: OpenSSL libs ───────────────────────────────────────────────────
+# Separate stage so apt guarantees the correct version regardless of what the
+# builder installs. dpkg-architecture resolves the multiarch triplet at build
+# time (x86_64-linux-gnu on amd64, aarch64-linux-gnu on arm64, etc.), so the
+# same Dockerfile works for multi-arch builds without hardcoded paths.
+FROM debian:bookworm-slim AS openssl-libs
 RUN apt-get update \
- && apt-get install -y ca-certificates curl libssl3 \
+ && apt-get install -y --no-install-recommends libssl3 dpkg-dev \
  && rm -rf /var/lib/apt/lists/* \
- && useradd -r -s /bin/false ovlt
+ && TRIPLET=$(dpkg-architecture -q DEB_HOST_MULTIARCH) \
+ && cp /usr/lib/$TRIPLET/libssl.so.3    /libssl.so.3 \
+ && cp /usr/lib/$TRIPLET/libcrypto.so.3 /libcrypto.so.3
 
-WORKDIR /app
-COPY --from=builder /app/target/release/ovlt-core ./ovlt-core
+# ─── Stage 3: Runtime ────────────────────────────────────────────────────────
+# Distroless: no shell, no package manager, no setuid binaries, UID 65532.
+# cc-debian12 provides glibc + libgcc; OpenSSL is copied from the openssl-libs
+# stage into /usr/lib/ which is in the default ld.so search path on all arches.
+FROM gcr.io/distroless/cc-debian12:nonroot AS runtime
 
-USER ovlt
+COPY --from=openssl-libs /libssl.so.3    /usr/lib/
+COPY --from=openssl-libs /libcrypto.so.3 /usr/lib/
+COPY --from=builder /app/target/release/ovlt-core /ovlt-core
+
 EXPOSE 3000
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s \
-  CMD curl -fsS http://localhost:3000/health || exit 1
-
-ENTRYPOINT ["./ovlt-core"]
+ENTRYPOINT ["/ovlt-core"]

@@ -12,7 +12,7 @@ use crate::{
     db,
     error::{validation_to_app_error, AppError},
     handlers::admin_auth,
-    services::permission_service,
+    services::{audit_service, permission_service},
     state::AppState,
 };
 
@@ -25,13 +25,7 @@ fn extract_tenant_id(headers: &HeaderMap) -> Result<Uuid, AppError> {
 }
 
 fn require_admin(state: &AppState, headers: &HeaderMap) -> Result<(), AppError> {
-    admin_auth::require_admin(
-        headers,
-        &state.config.admin_key,
-        &state.config.jwt_secret,
-        state.master_tenant_id,
-    )
-    .map(|_| ())
+    admin_auth::require_admin(headers, &state.config, state.master_tenant_id).map(|_| ())
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
@@ -123,6 +117,7 @@ pub async fn create_permission(
     headers: HeaderMap,
     Json(payload): Json<CreatePermissionRequest>,
 ) -> Result<impl IntoResponse, AppError> {
+    let actor = admin_auth::extract_actor(&headers, &state.config);
     require_admin(&state, &headers)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
@@ -139,6 +134,16 @@ pub async fn create_permission(
     )
     .await?;
     txn.commit().await?;
+
+    audit_service::record_best_effort(
+        state.db.clone(),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "permission.created",
+            serde_json::json!({"permission_id": perm.id, "name": perm.name.as_str()}),
+        ),
+    );
 
     Ok((
         StatusCode::CREATED,
@@ -174,6 +179,7 @@ pub async fn update_permission(
     Path(id): Path<Uuid>,
     Json(payload): Json<UpdatePermissionRequest>,
 ) -> Result<impl IntoResponse, AppError> {
+    let actor = admin_auth::extract_actor(&headers, &state.config);
     require_admin(&state, &headers)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
@@ -188,6 +194,16 @@ pub async fn update_permission(
     )
     .await?;
     txn.commit().await?;
+
+    audit_service::record_best_effort(
+        state.db.clone(),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "permission.updated",
+            serde_json::json!({"permission_id": id}),
+        ),
+    );
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -213,12 +229,23 @@ pub async fn delete_permission(
     headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
+    let actor = admin_auth::extract_actor(&headers, &state.config);
     require_admin(&state, &headers)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
     let txn = db::begin_tenant_txn(&state.db, tenant_id).await?;
     permission_service::delete(&txn, id).await?;
     txn.commit().await?;
+
+    audit_service::record_best_effort(
+        state.db.clone(),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "permission.deleted",
+            serde_json::json!({"permission_id": id}),
+        ),
+    );
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -289,6 +316,7 @@ pub async fn assign_role_permission(
     Path(role_id): Path<Uuid>,
     Json(payload): Json<AssignPermissionRequest>,
 ) -> Result<impl IntoResponse, AppError> {
+    let actor = admin_auth::extract_actor(&headers, &state.config);
     require_admin(&state, &headers)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
@@ -298,6 +326,16 @@ pub async fn assign_role_permission(
     let txn = db::begin_tenant_txn(&state.db, tenant_id).await?;
     permission_service::assign_to_role(&txn, role_id, permission_id, tenant_id).await?;
     txn.commit().await?;
+
+    audit_service::record_best_effort(
+        state.db.clone(),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "role.permission.assigned",
+            serde_json::json!({"role_id": role_id, "permission_id": permission_id}),
+        ),
+    );
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -324,12 +362,23 @@ pub async fn revoke_role_permission(
     headers: HeaderMap,
     Path((role_id, permission_id)): Path<(Uuid, Uuid)>,
 ) -> Result<impl IntoResponse, AppError> {
+    let actor = admin_auth::extract_actor(&headers, &state.config);
     require_admin(&state, &headers)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
     let txn = db::begin_tenant_txn(&state.db, tenant_id).await?;
     permission_service::revoke_from_role(&txn, role_id, permission_id).await?;
     txn.commit().await?;
+
+    audit_service::record_best_effort(
+        state.db.clone(),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "role.permission.revoked",
+            serde_json::json!({"role_id": role_id, "permission_id": permission_id}),
+        ),
+    );
 
     Ok(StatusCode::NO_CONTENT)
 }

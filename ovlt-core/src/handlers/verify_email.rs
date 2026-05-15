@@ -1,15 +1,13 @@
-use axum::{extract::State, response::IntoResponse, Extension, Json};
+use axum::{response::IntoResponse, Json};
 use sea_orm::{ActiveModelTrait, Set};
 use serde::Deserialize;
 use validator::Validate;
 
 use crate::{
-    db,
     entity::users,
     error::{validation_to_app_error, AppError},
-    middleware::tenant::TenantContext,
+    extractors::TenantDb,
     services::{one_time_token_service, user_service},
-    state::AppState,
 };
 
 #[derive(Debug, Deserialize, Validate, utoipa::ToSchema)]
@@ -38,28 +36,30 @@ pub struct VerifyOtpRequest {
     )
 )]
 pub async fn verify_email(
-    State(state): State<AppState>,
-    Extension(ctx): Extension<TenantContext>,
+    db: TenantDb,
     Json(payload): Json<VerifyOtpRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     payload.validate().map_err(validation_to_app_error)?;
 
-    let email_normalized = payload.email.trim().to_lowercase();
-    let email_lookup = hefesto::hash_for_lookup(&email_normalized, &ctx.tenant_key)?;
+    let TenantDb {
+        txn, tenant_key, ..
+    } = db;
 
-    let txn = db::begin_tenant_txn(&state.db, ctx.tenant_id).await?;
+    let email_normalized = payload.email.trim().to_lowercase();
+    let email_lookup = hefesto::hash_for_lookup(&email_normalized, &tenant_key)?;
+
     let user = user_service::find_by_email_lookup(&txn, &email_lookup)
         .await?
-        .ok_or(AppError::InvalidInput("invalid OTP".into()))?; // don't reveal user existence
-    txn.commit().await?;
+        .ok_or(AppError::InvalidInput("invalid OTP".into()))?;
 
-    one_time_token_service::consume_otp(&state.db, user.id, &payload.otp).await?;
+    // OTP consumed within the tenant transaction — RLS enforces tenant isolation.
+    one_time_token_service::consume_otp(&txn, user.id, &payload.otp).await?;
 
-    let txn2 = db::begin_tenant_txn(&state.db, ctx.tenant_id).await?;
     let mut active: users::ActiveModel = user.into();
     active.email_verified = Set(true);
-    active.update(&txn2).await?;
-    txn2.commit().await?;
+    active.update(&txn).await?;
+
+    txn.commit().await?;
 
     Ok(Json(
         serde_json::json!({ "message": "email verified successfully" }),

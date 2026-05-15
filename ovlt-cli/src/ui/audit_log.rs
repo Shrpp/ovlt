@@ -4,7 +4,7 @@ use crate::{app::App, components::table::StatefulTable};
 
 pub fn render(frame: &mut Frame, app: &App, area: Rect, table: &mut StatefulTable) {
     let tenant_name = app.active_tenant_name().unwrap_or("?");
-    let title = format!(" Audit Log — {tenant_name} ");
+    let title = format!(" Audit Log — {tenant_name}  [x] export CSV ");
 
     let rows: Vec<Vec<String>> = app
         .audit_log

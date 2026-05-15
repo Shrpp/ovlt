@@ -19,14 +19,27 @@ pub struct JwkService {
 
 impl JwkService {
     pub fn from_pem_b64(b64: &str) -> Result<Self, String> {
+        Self::build(Self::parse_pem_b64(b64)?, None)
+    }
+
+    pub fn from_pem_b64_with_previous(
+        current_b64: &str,
+        previous_b64: &str,
+    ) -> Result<Self, String> {
+        Self::build(
+            Self::parse_pem_b64(current_b64)?,
+            Some(Self::parse_pem_b64(previous_b64)?),
+        )
+    }
+
+    fn parse_pem_b64(b64: &str) -> Result<RsaPrivateKey, String> {
         let pem_bytes = STANDARD
             .decode(b64.trim())
-            .map_err(|e| format!("invalid base64 for RSA_PRIVATE_KEY: {e}"))?;
-        let pem_str = String::from_utf8(pem_bytes)
-            .map_err(|e| format!("RSA_PRIVATE_KEY not valid UTF-8: {e}"))?;
-        let private_key = RsaPrivateKey::from_pkcs8_pem(&pem_str)
-            .map_err(|e| format!("failed to parse RSA private key: {e}"))?;
-        Self::build(private_key)
+            .map_err(|e| format!("invalid base64 for RSA key: {e}"))?;
+        let pem_str =
+            String::from_utf8(pem_bytes).map_err(|e| format!("RSA key not valid UTF-8: {e}"))?;
+        RsaPrivateKey::from_pkcs8_pem(&pem_str)
+            .map_err(|e| format!("failed to parse RSA private key: {e}"))
     }
 
     pub fn generate() -> Self {
@@ -36,37 +49,47 @@ impl JwkService {
         );
         let private_key =
             RsaPrivateKey::new(&mut OsRng, 2048).expect("failed to generate RSA-2048 key");
-        Self::build(private_key).expect("failed to build JwkService from generated key")
+        Self::build(private_key, None).expect("failed to build JwkService from generated key")
     }
 
-    fn build(private_key: RsaPrivateKey) -> Result<Self, String> {
-        let pem = private_key
+    fn build(current: RsaPrivateKey, previous: Option<RsaPrivateKey>) -> Result<Self, String> {
+        let pem = current
             .to_pkcs8_pem(LineEnding::LF)
             .map_err(|e| format!("failed to export RSA key to PEM: {e}"))?;
 
         let encoding_key = EncodingKey::from_rsa_pem(pem.as_bytes())
             .map_err(|e| format!("failed to build EncodingKey: {e}"))?;
 
-        let pub_key = private_key.to_public_key();
+        let pub_key = current.to_public_key();
         let n_bytes = pub_key.n().to_bytes_be();
         let e_bytes = pub_key.e().to_bytes_be();
-
-        let n_b64 = URL_SAFE_NO_PAD.encode(&n_bytes);
-        let e_b64 = URL_SAFE_NO_PAD.encode(&e_bytes);
-
         let kid = hex::encode(&Sha256::digest(&n_bytes)[..8]);
 
-        let jwks_json = serde_json::json!({
-            "keys": [{
+        let mut keys = vec![serde_json::json!({
+            "kty": "RSA",
+            "use": "sig",
+            "alg": "RS256",
+            "kid": kid,
+            "n": URL_SAFE_NO_PAD.encode(&n_bytes),
+            "e": URL_SAFE_NO_PAD.encode(&e_bytes),
+        })];
+
+        if let Some(prev_key) = previous {
+            let prev_pub = prev_key.to_public_key();
+            let prev_n = prev_pub.n().to_bytes_be();
+            let prev_e = prev_pub.e().to_bytes_be();
+            let prev_kid = hex::encode(&Sha256::digest(&prev_n)[..8]);
+            keys.push(serde_json::json!({
                 "kty": "RSA",
                 "use": "sig",
                 "alg": "RS256",
-                "kid": kid,
-                "n": n_b64,
-                "e": e_b64
-            }]
-        })
-        .to_string();
+                "kid": prev_kid,
+                "n": URL_SAFE_NO_PAD.encode(&prev_n),
+                "e": URL_SAFE_NO_PAD.encode(&prev_e),
+            }));
+        }
+
+        let jwks_json = serde_json::json!({ "keys": keys }).to_string();
 
         Ok(Self {
             encoding_key,

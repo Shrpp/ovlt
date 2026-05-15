@@ -6,9 +6,8 @@ use axum::{
     response::IntoResponse,
 };
 use std::net::SocketAddr;
-use std::time::Instant;
 
-use crate::{error::AppError, state::AppState};
+use crate::{error::AppError, services::rate_limit_service, state::AppState};
 
 pub async fn security_headers_middleware(
     State(state): State<AppState>,
@@ -54,9 +53,6 @@ pub async fn security_headers_middleware(
     response
 }
 
-const RATE_LIMIT_MAX: usize = 20;
-const RATE_LIMIT_WINDOW_SECS: u64 = 60;
-
 pub async fn rate_limit_middleware(
     State(state): State<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
@@ -64,22 +60,8 @@ pub async fn rate_limit_middleware(
     next: Next,
 ) -> Result<impl IntoResponse, AppError> {
     let ip = addr.ip().to_string();
-    let now = Instant::now();
-    let window = std::time::Duration::from_secs(RATE_LIMIT_WINDOW_SECS);
 
-    let allowed = {
-        let mut store = state.rate_limiter.lock().unwrap();
-        let timestamps = store.entry(ip).or_default();
-        timestamps.retain(|t| now.duration_since(*t) < window);
-        if timestamps.len() >= RATE_LIMIT_MAX {
-            false
-        } else {
-            timestamps.push(now);
-            true
-        }
-    };
-
-    if !allowed {
+    if !rate_limit_service::check_and_increment(&state.db, &ip).await? {
         return Err(AppError::TooManyRequests);
     }
 

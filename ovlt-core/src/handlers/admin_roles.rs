@@ -12,7 +12,7 @@ use crate::{
     db,
     error::{validation_to_app_error, AppError},
     handlers::admin_auth,
-    services::role_service,
+    services::{audit_service, role_service},
     state::AppState,
 };
 
@@ -25,13 +25,7 @@ fn extract_tenant_id(headers: &HeaderMap) -> Result<Uuid, AppError> {
 }
 
 fn require_admin(state: &AppState, headers: &HeaderMap) -> Result<(), AppError> {
-    admin_auth::require_admin(
-        headers,
-        &state.config.admin_key,
-        &state.config.jwt_secret,
-        state.master_tenant_id,
-    )
-    .map(|_| ())
+    admin_auth::require_admin(headers, &state.config, state.master_tenant_id).map(|_| ())
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
@@ -123,6 +117,7 @@ pub async fn create_role(
     headers: HeaderMap,
     Json(payload): Json<CreateRoleRequest>,
 ) -> Result<impl IntoResponse, AppError> {
+    let actor = admin_auth::extract_actor(&headers, &state.config);
     require_admin(&state, &headers)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
@@ -139,6 +134,16 @@ pub async fn create_role(
     )
     .await?;
     txn.commit().await?;
+
+    audit_service::record_best_effort(
+        state.db.clone(),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "role.created",
+            serde_json::json!({"role_id": role.id, "name": role.name.as_str()}),
+        ),
+    );
 
     Ok((
         StatusCode::CREATED,
@@ -174,6 +179,7 @@ pub async fn update_role(
     Path(id): Path<Uuid>,
     Json(payload): Json<UpdateRoleRequest>,
 ) -> Result<impl IntoResponse, AppError> {
+    let actor = admin_auth::extract_actor(&headers, &state.config);
     require_admin(&state, &headers)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
@@ -188,6 +194,16 @@ pub async fn update_role(
     )
     .await?;
     txn.commit().await?;
+
+    audit_service::record_best_effort(
+        state.db.clone(),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "role.updated",
+            serde_json::json!({"role_id": id}),
+        ),
+    );
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -213,12 +229,23 @@ pub async fn delete_role(
     headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
+    let actor = admin_auth::extract_actor(&headers, &state.config);
     require_admin(&state, &headers)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
     let txn = db::begin_tenant_txn(&state.db, tenant_id).await?;
     role_service::delete(&txn, id).await?;
     txn.commit().await?;
+
+    audit_service::record_best_effort(
+        state.db.clone(),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "role.deleted",
+            serde_json::json!({"role_id": id}),
+        ),
+    );
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -289,6 +316,7 @@ pub async fn assign_user_role(
     Path(user_id): Path<Uuid>,
     Json(payload): Json<AssignRoleRequest>,
 ) -> Result<impl IntoResponse, AppError> {
+    let actor = admin_auth::extract_actor(&headers, &state.config);
     require_admin(&state, &headers)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
@@ -298,6 +326,16 @@ pub async fn assign_user_role(
     let txn = db::begin_tenant_txn(&state.db, tenant_id).await?;
     role_service::assign(&txn, user_id, role_id, tenant_id).await?;
     txn.commit().await?;
+
+    audit_service::record_best_effort(
+        state.db.clone(),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "user.role.assigned",
+            serde_json::json!({"user_id": user_id, "role_id": role_id}),
+        ),
+    );
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -324,12 +362,23 @@ pub async fn revoke_user_role(
     headers: HeaderMap,
     Path((user_id, role_id)): Path<(Uuid, Uuid)>,
 ) -> Result<impl IntoResponse, AppError> {
+    let actor = admin_auth::extract_actor(&headers, &state.config);
     require_admin(&state, &headers)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
     let txn = db::begin_tenant_txn(&state.db, tenant_id).await?;
     role_service::revoke(&txn, user_id, role_id).await?;
     txn.commit().await?;
+
+    audit_service::record_best_effort(
+        state.db.clone(),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "user.role.revoked",
+            serde_json::json!({"user_id": user_id, "role_id": role_id}),
+        ),
+    );
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -400,6 +449,7 @@ pub async fn assign_client_role(
     Path(client_uuid): Path<Uuid>,
     Json(payload): Json<AssignRoleRequest>,
 ) -> Result<impl IntoResponse, AppError> {
+    let actor = admin_auth::extract_actor(&headers, &state.config);
     require_admin(&state, &headers)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
@@ -409,6 +459,16 @@ pub async fn assign_client_role(
     let txn = db::begin_tenant_txn(&state.db, tenant_id).await?;
     role_service::assign_client_role(&txn, client_uuid, role_id, tenant_id).await?;
     txn.commit().await?;
+
+    audit_service::record_best_effort(
+        state.db.clone(),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "client.role.assigned",
+            serde_json::json!({"client_id": client_uuid, "role_id": role_id}),
+        ),
+    );
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -435,12 +495,23 @@ pub async fn revoke_client_role(
     headers: HeaderMap,
     Path((client_uuid, role_id)): Path<(Uuid, Uuid)>,
 ) -> Result<impl IntoResponse, AppError> {
+    let actor = admin_auth::extract_actor(&headers, &state.config);
     require_admin(&state, &headers)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
     let txn = db::begin_tenant_txn(&state.db, tenant_id).await?;
     role_service::revoke_client_role(&txn, client_uuid, role_id).await?;
     txn.commit().await?;
+
+    audit_service::record_best_effort(
+        state.db.clone(),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "client.role.revoked",
+            serde_json::json!({"client_id": client_uuid, "role_id": role_id}),
+        ),
+    );
 
     Ok(StatusCode::NO_CONTENT)
 }

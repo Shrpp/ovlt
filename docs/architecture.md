@@ -48,8 +48,8 @@ sequenceDiagram
 ```
 
 1. The application connects as role `ovlt_rls` (not a superuser).
-2. The `tenant_middleware` resolves the tenant from `x-ovlt-tenant-id` or `x-ovlt-tenant-slug`, decrypts the per-tenant data key, and stores both in request `Extensions` as `TenantContext`.
-3. Each handler that touches the database opens a transaction via `db::begin_tenant_txn(tenant_id)`, which executes `SELECT set_config('app.tenant_id', $1, true)` — parameterized, transaction-scoped.
+2. The `tenant_middleware` resolves the tenant from `x-ovlt-tenant-id` or `x-ovlt-tenant-slug`, decrypts the per-tenant data key (or returns it from a 5-minute in-memory cache), and stores both in request `Extensions` as `TenantContext`. Cached keys are wrapped in `Zeroizing<String>` — memory is zeroed when the entry expires or is evicted.
+3. Handlers that touch tenant data declare `TenantDb` as an Axum extractor. The extractor reads `TenantContext` from extensions and opens a transaction via `db::begin_tenant_txn(tenant_id)`, which executes `SELECT set_config('app.tenant_id', $1, true)` — parameterized, transaction-scoped. If `TenantContext` is absent (tenant middleware did not run), the extractor rejects the request with `401` before the handler body executes.
 4. All tables carry an RLS policy: `USING (tenant_id = current_setting('app.tenant_id')::uuid)`.
 5. `FORCE ROW LEVEL SECURITY` prevents the table owner from bypassing it.
 
@@ -57,9 +57,9 @@ sequenceDiagram
   Even a successful SQL injection running inside the application's DB session cannot read data from another tenant — the RLS policy returns zero rows before the data is visible.
 </Note>
 
-<Warning>
-  RLS only activates inside transactions opened with `db::begin_tenant_txn`. Handlers that use `state.db` directly without calling it will operate without `app.tenant_id` set and may read across tenants. A type-safe extractor that makes the transaction mandatory is on the beta roadmap.
-</Warning>
+<Note>
+  The `TenantDb` extractor (`src/extractors.rs`) enforces RLS at compile time for user-facing handlers. A handler that declares `TenantDb` in its signature cannot accidentally receive a raw `DatabaseConnection` that bypasses row-level security. Admin handlers that operate across tenants use `db::begin_tenant_txn` explicitly with a path-parameter `tenant_id`.
+</Note>
 
 ## Encryption model
 
@@ -119,11 +119,11 @@ flowchart TD
     TENANT["tenant_middleware\nresolve tenant · decrypt data key · attach TenantContext"]
     AUTH["auth_middleware\nvalidate Bearer token · extract claims"]
     HANDLER["handler"]
-    TXN["db::begin_tenant_txn\nSET LOCAL app.tenant_id = ..."]
+    TXN["TenantDb extractor\nSET LOCAL app.tenant_id = ..."]
     RES(["HTTP response"])
 
     REQ --> SEC --> CORS --> RATE --> TENANT --> AUTH --> HANDLER --> RES
-    HANDLER -.->|"on DB access"| TXN
+    HANDLER -.->|"TenantDb declared in signature"| TXN
 ```
 
 ## Background tasks
@@ -134,6 +134,7 @@ A Tokio task runs every 6 hours and purges expired rows:
 - Expired JTI replay-protection entries
 - Stale login attempt records (lockout cleanup)
 - Expired sessions
+- Expired rate limit buckets (`rate_limit_buckets.expires_at < NOW()`)
 
 ## Dependencies
 

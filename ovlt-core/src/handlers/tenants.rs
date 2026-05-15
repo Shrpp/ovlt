@@ -13,7 +13,7 @@ use crate::{
     entity::tenants,
     error::{validation_to_app_error, AppError},
     handlers::admin_auth,
-    services::seed_service,
+    services::{audit_service, seed_service},
     state::AppState,
 };
 
@@ -67,12 +67,8 @@ pub async fn create_tenant(
     headers: HeaderMap,
     Json(payload): Json<CreateTenantRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    admin_auth::require_admin(
-        &headers,
-        &state.config.admin_key,
-        &state.config.jwt_secret,
-        state.master_tenant_id,
-    )?;
+    let actor = admin_auth::extract_actor(&headers, &state.config);
+    admin_auth::require_admin(&headers, &state.config, state.master_tenant_id)?;
 
     payload.validate().map_err(validation_to_app_error)?;
     validate_slug(&payload.slug)?;
@@ -109,6 +105,16 @@ pub async fn create_tenant(
 
     // Seed SuperAdmin role + default:super_admin permission for every new tenant.
     seed_service::seed_tenant_defaults(&state.db, tenant.id).await?;
+
+    audit_service::record_best_effort(
+        state.db.clone(),
+        audit_service::AuditEvent::new(
+            tenant.id,
+            actor,
+            "tenant.created",
+            serde_json::json!({"slug": tenant.slug.as_str(), "name": tenant.name.as_str()}),
+        ),
+    );
 
     Ok((
         StatusCode::CREATED,
@@ -166,12 +172,7 @@ pub async fn list_tenants(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<impl IntoResponse, AppError> {
-    let scope = admin_auth::require_admin(
-        &headers,
-        &state.config.admin_key,
-        &state.config.jwt_secret,
-        state.master_tenant_id,
-    )?;
+    let scope = admin_auth::require_admin(&headers, &state.config, state.master_tenant_id)?;
 
     let tenants = if let Some(tenant_id) = scope {
         // SuperAdmin: return only their own tenant

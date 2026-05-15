@@ -30,7 +30,11 @@ pub async fn auth_middleware(
         .and_then(|s| s.strip_prefix("Bearer "))
         .ok_or(AppError::Unauthorized)?;
 
-    let claims = token_service::validate_access_token(token, &state.config.jwt_secret)?;
+    let claims = token_service::validate_access_token(
+        token,
+        &state.config.jwt_secret,
+        state.config.jwt_secret_previous.as_deref(),
+    )?;
 
     if token_service::is_jti_revoked(&state.db, &claims.jti).await? {
         return Err(AppError::Unauthorized);

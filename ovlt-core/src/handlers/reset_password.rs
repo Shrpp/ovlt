@@ -8,7 +8,10 @@ use crate::{
     entity::{one_time_tokens, users},
     error::{validation_to_app_error, AppError},
     middleware::tenant::TenantContext,
-    services::{one_time_token_service, password_policy_service, token_service, user_service},
+    services::{
+        audit_service, one_time_token_service, password_history_service, password_policy_service,
+        token_service, user_service,
+    },
     state::AppState,
 };
 
@@ -53,26 +56,47 @@ pub async fn reset_password(
         return Err(AppError::Unauthorized);
     }
 
-    // Apply password policy.
+    // Apply password policy (format rules).
     let policy = password_policy_service::get(&state.db, ctx.tenant_id).await?;
     password_policy_service::validate(&payload.new_password, &policy)?;
 
-    let new_hash = hefesto::hash_password(&payload.new_password)?;
-
     let txn = db::begin_tenant_txn(&state.db, ctx.tenant_id).await?;
+
+    // Reject if plaintext matches any of the last N stored hashes.
+    password_history_service::check(
+        &txn,
+        record.user_id,
+        &payload.new_password,
+        policy.history_size,
+    )
+    .await?;
+
+    let new_hash = hefesto::hash_password(&payload.new_password)?;
 
     let user = user_service::find_by_id(&txn, record.user_id)
         .await?
         .ok_or(AppError::NotFound)?;
 
     let mut active: users::ActiveModel = user.into();
-    active.password_hash = Set(new_hash);
+    active.password_hash = Set(new_hash.clone());
     active.update(&txn).await?;
+
+    password_history_service::record(&txn, ctx.tenant_id, record.user_id, &new_hash).await?;
 
     // Revoke all refresh tokens so existing sessions must re-login.
     token_service::revoke_all_user_tokens(&txn, record.user_id).await?;
 
     txn.commit().await?;
+
+    audit_service::record_best_effort(
+        state.db.clone(),
+        audit_service::AuditEvent::new(
+            ctx.tenant_id,
+            Some(record.user_id),
+            "user.password.reset",
+            serde_json::json!({}),
+        ),
+    );
 
     Ok(Json(
         serde_json::json!({ "message": "password updated successfully" }),

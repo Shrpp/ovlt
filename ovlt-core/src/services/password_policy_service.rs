@@ -1,5 +1,5 @@
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, Set};
+use sea_orm::{ActiveModelTrait, ConnectionTrait, DatabaseConnection, EntityTrait, Set};
 use uuid::Uuid;
 
 use crate::{entity::password_policies, error::AppError};
@@ -9,6 +9,7 @@ pub struct Policy {
     pub require_uppercase: bool,
     pub require_digit: bool,
     pub require_special: bool,
+    pub history_size: i32,
 }
 
 impl Default for Policy {
@@ -18,11 +19,12 @@ impl Default for Policy {
             require_uppercase: false,
             require_digit: false,
             require_special: false,
+            history_size: 0,
         }
     }
 }
 
-pub async fn get(db: &DatabaseConnection, tenant_id: Uuid) -> Result<Policy, AppError> {
+pub async fn get<C: ConnectionTrait>(db: &C, tenant_id: Uuid) -> Result<Policy, AppError> {
     match password_policies::Entity::find_by_id(tenant_id)
         .one(db)
         .await?
@@ -32,6 +34,7 @@ pub async fn get(db: &DatabaseConnection, tenant_id: Uuid) -> Result<Policy, App
             require_uppercase: p.require_uppercase,
             require_digit: p.require_digit,
             require_special: p.require_special,
+            history_size: p.history_size,
         }),
         None => Ok(Policy::default()),
     }

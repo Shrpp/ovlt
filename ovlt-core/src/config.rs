@@ -34,6 +34,12 @@ pub struct Config {
     /// Base64-encoded PKCS8 PEM for RS256 id_token signing.
     /// If not set, an ephemeral key is generated (lost on restart).
     pub rsa_private_key: Option<String>,
+    /// Previous RSA private key (base64 PKCS8 PEM) served in JWKS during key rotation.
+    /// Remove after all id_tokens signed with the old key have expired.
+    pub rsa_private_key_previous: Option<String>,
+    /// Previous JWT signing secret accepted during HS256 key rotation grace period.
+    /// Remove after all access tokens signed with the old secret have expired (≤ 15 min).
+    pub jwt_secret_previous: Option<String>,
     pub db_max_connections: u32,
     pub db_min_connections: u32,
 }
@@ -182,6 +188,8 @@ impl Config {
             bootstrap_admin_password,
             ovlt_issuer: env::var("OVLT_ISSUER").unwrap_or_else(|_| "http://localhost:3000".into()),
             rsa_private_key: env::var("RSA_PRIVATE_KEY").ok(),
+            rsa_private_key_previous: env::var("RSA_PRIVATE_KEY_PREVIOUS").ok(),
+            jwt_secret_previous: env::var("JWT_SECRET_PREVIOUS").ok(),
             db_max_connections: parse_u32("DATABASE_MAX_CONNECTIONS", 20)?,
             db_min_connections: parse_u32("DATABASE_MIN_CONNECTIONS", 2)?,
         })

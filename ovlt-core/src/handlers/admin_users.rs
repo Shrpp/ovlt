@@ -13,7 +13,10 @@ use crate::{
     entity::one_time_tokens,
     error::{validation_to_app_error, AppError},
     handlers::admin_auth,
-    services::{mfa_service, one_time_token_service, tenant_service, user_service},
+    services::{
+        audit_service, mfa_service, one_time_token_service, password_history_service,
+        password_policy_service, tenant_service, user_service,
+    },
     state::AppState,
 };
 
@@ -68,12 +71,7 @@ pub async fn list_users(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<impl IntoResponse, AppError> {
-    admin_auth::require_admin(
-        &headers,
-        &state.config.admin_key,
-        &state.config.jwt_secret,
-        state.master_tenant_id,
-    )?;
+    admin_auth::require_admin(&headers, &state.config, state.master_tenant_id)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
     let tenant = tenant_service::find_active(&state.db, tenant_id).await?;
@@ -130,12 +128,8 @@ pub async fn create_user(
     headers: HeaderMap,
     Json(payload): Json<CreateUserRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    admin_auth::require_admin(
-        &headers,
-        &state.config.admin_key,
-        &state.config.jwt_secret,
-        state.master_tenant_id,
-    )?;
+    let actor = admin_auth::extract_actor(&headers, &state.config);
+    admin_auth::require_admin(&headers, &state.config, state.master_tenant_id)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
     payload.validate().map_err(validation_to_app_error)?;
@@ -176,6 +170,16 @@ pub async fn create_user(
     .await?;
 
     txn.commit().await?;
+
+    audit_service::record_best_effort(
+        state.db.clone(),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "user.created",
+            serde_json::json!({"user_id": user.id}),
+        ),
+    );
 
     Ok((
         StatusCode::CREATED,
@@ -223,12 +227,8 @@ pub async fn update_user(
     Path(id): Path<Uuid>,
     Json(payload): Json<UpdateUserRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    admin_auth::require_admin(
-        &headers,
-        &state.config.admin_key,
-        &state.config.jwt_secret,
-        state.master_tenant_id,
-    )?;
+    let actor = admin_auth::extract_actor(&headers, &state.config);
+    admin_auth::require_admin(&headers, &state.config, state.master_tenant_id)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
     payload.validate().map_err(validation_to_app_error)?;
@@ -254,13 +254,26 @@ pub async fn update_user(
     }
 
     if let Some(password) = payload.password {
+        let policy = password_policy_service::get(&txn, tenant_id).await?;
+        password_history_service::check(&txn, id, &password, policy.history_size).await?;
         let password_hash = hefesto::hash_password(&password)?;
+        password_history_service::record(&txn, tenant_id, id, &password_hash).await?;
         user_service::update_password(&txn, id, password_hash).await?;
     }
 
     user_service::set_active(&txn, id, payload.is_active).await?;
 
     txn.commit().await?;
+
+    audit_service::record_best_effort(
+        state.db.clone(),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "user.updated",
+            serde_json::json!({"user_id": id, "is_active": payload.is_active}),
+        ),
+    );
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -286,17 +299,23 @@ pub async fn deactivate_user(
     headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
-    admin_auth::require_admin(
-        &headers,
-        &state.config.admin_key,
-        &state.config.jwt_secret,
-        state.master_tenant_id,
-    )?;
+    let actor = admin_auth::extract_actor(&headers, &state.config);
+    admin_auth::require_admin(&headers, &state.config, state.master_tenant_id)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
     let txn = db::begin_tenant_txn(&state.db, tenant_id).await?;
     user_service::deactivate(&txn, id).await?;
     txn.commit().await?;
+
+    audit_service::record_best_effort(
+        state.db.clone(),
+        audit_service::AuditEvent::new(
+            tenant_id,
+            actor,
+            "user.deactivated",
+            serde_json::json!({"user_id": id}),
+        ),
+    );
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -322,12 +341,7 @@ pub async fn get_verification_code(
     headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
-    admin_auth::require_admin(
-        &headers,
-        &state.config.admin_key,
-        &state.config.jwt_secret,
-        state.master_tenant_id,
-    )?;
+    admin_auth::require_admin(&headers, &state.config, state.master_tenant_id)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
     let otp = one_time_token_service::generate_otp();
@@ -366,12 +380,7 @@ pub async fn get_password_reset_token(
     headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
-    admin_auth::require_admin(
-        &headers,
-        &state.config.admin_key,
-        &state.config.jwt_secret,
-        state.master_tenant_id,
-    )?;
+    admin_auth::require_admin(&headers, &state.config, state.master_tenant_id)?;
     let tenant_id = extract_tenant_id(&headers)?;
 
     let token = one_time_token_service::generate();

@@ -13,6 +13,30 @@ jobs:
   ci:
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ovlt
+          POSTGRES_PASSWORD: ovlt
+          POSTGRES_DB: ovlt_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ovlt -d ovlt_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://ovlt:ovlt@localhost:5432/ovlt_test
+      JWT_SECRET: ${{ secrets.CI_JWT_SECRET }}
+      MASTER_ENCRYPTION_KEY: ${{ secrets.CI_MASTER_ENCRYPTION_KEY }}
+      TENANT_WRAP_KEY: ${{ secrets.CI_TENANT_WRAP_KEY }}
+      OVLT_ADMIN_KEY: ${{ secrets.CI_OVLT_ADMIN_KEY }}
+      OVLT_ISSUER: http://localhost:3000
+      ENVIRONMENT: development
+
     steps:
       - uses: actions/checkout@v4
 
@@ -32,3 +56,9 @@ jobs:
 
       - name: Build
         run: cargo build --verbose
+
+      - name: Migrate
+        run: cargo run --bin migration -- up
+
+      - name: Test
+        run: cargo test --package ovlt-core -- --test-threads=1

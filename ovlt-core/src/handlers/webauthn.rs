@@ -284,13 +284,14 @@ pub async fn authenticate_finish(
 
     txn.commit().await?;
 
-    audit_service::record(
+    audit_service::record_best_effort(
         state.db.clone(),
-        ctx.tenant_id,
-        Some(user.id),
-        "login.webauthn.success",
-        None,
-        None,
+        audit_service::AuditEvent::new(
+            ctx.tenant_id,
+            Some(user.id),
+            "login.webauthn.success",
+            serde_json::json!({}),
+        ),
     );
 
     session_service::create(

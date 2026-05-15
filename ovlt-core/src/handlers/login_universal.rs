@@ -147,13 +147,14 @@ pub async fn login_universal(
     )
     .await?
     {
-        audit_service::record(
+        audit_service::record_best_effort(
             state.db.clone(),
-            tenant_id,
-            None,
-            "login.locked",
-            Some(ip.clone()),
-            None,
+            audit_service::AuditEvent::new(
+                tenant_id,
+                None,
+                "login.locked",
+                serde_json::json!({"ip": ip}),
+            ),
         );
         return Err(AppError::Unauthorized);
     }
@@ -165,13 +166,14 @@ pub async fn login_universal(
         None => {
             txn.commit().await?;
             lockout_service::record_attempt(&state.db, tenant_id, &email_lookup).await?;
-            audit_service::record(
+            audit_service::record_best_effort(
                 state.db.clone(),
-                tenant_id,
-                None,
-                "login.failed.unknown_email",
-                Some(ip),
-                None,
+                audit_service::AuditEvent::new(
+                    tenant_id,
+                    None,
+                    "login.failed.unknown_email",
+                    serde_json::json!({"ip": ip}),
+                ),
             );
             return Err(AppError::Unauthorized);
         }
@@ -190,13 +192,14 @@ pub async fn login_universal(
     if !hefesto::verify_password(&payload.password, &user.password_hash) {
         txn.commit().await?;
         lockout_service::record_attempt(&state.db, tenant_id, &email_lookup).await?;
-        audit_service::record(
+        audit_service::record_best_effort(
             state.db.clone(),
-            tenant_id,
-            Some(user.id),
-            "login.failed.wrong_password",
-            Some(ip),
-            None,
+            audit_service::AuditEvent::new(
+                tenant_id,
+                Some(user.id),
+                "login.failed.wrong_password",
+                serde_json::json!({"ip": ip}),
+            ),
         );
         return Err(AppError::Unauthorized);
     }
@@ -256,13 +259,14 @@ pub async fn login_universal(
     txn.commit().await?;
 
     lockout_service::clear_attempts(&state.db, tenant_id, &email_lookup).await?;
-    audit_service::record(
+    audit_service::record_best_effort(
         state.db.clone(),
-        tenant_id,
-        Some(user.id),
-        "login.success",
-        Some(ip.clone()),
-        None,
+        audit_service::AuditEvent::new(
+            tenant_id,
+            Some(user.id),
+            "login.success",
+            serde_json::json!({"ip": ip}),
+        ),
     );
 
     let session_id = session_service::create(

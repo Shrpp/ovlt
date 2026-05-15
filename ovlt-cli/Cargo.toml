@@ -1,6 +1,6 @@
 [package]
 name    = "ovlt-cli"
-version = "0.1.0-alpha"
+version = "0.2.0"
 edition = "2021"
 license = "MIT"
 
@@ -30,3 +30,4 @@ uuid        = { version = "1", features = ["v4"] }
 dirs        = "5"
 thiserror   = "1"
 arboard     = "3"
+csv         = "1"
